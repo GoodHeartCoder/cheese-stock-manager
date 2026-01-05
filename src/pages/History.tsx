@@ -264,7 +264,9 @@ export default function History() {
                       <p className="text-2xl font-bold text-foreground">
                         {selectedProduction.bagsProduced} bags
                       </p>
-                      <p className="text-sm text-muted-foreground">produced</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedProduction.formulaName}
+                      </p>
                     </>
                   )}
                 </div>

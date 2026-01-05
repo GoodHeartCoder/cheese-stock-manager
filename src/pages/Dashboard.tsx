@@ -9,10 +9,10 @@ import { Package, FlaskConical, Calendar, Plus, ArrowRight } from 'lucide-react'
 import { format } from 'date-fns';
 
 export default function Dashboard() {
-  const { ingredients, formula, productionHistory } = useInventory();
+  const { ingredients, formulas, productionHistory } = useInventory();
 
   const totalIngredients = ingredients.length;
-  const formulaItems = formula.items.length;
+  const totalFormulas = formulas.length;
   const recentProductions = productionHistory.slice(0, 5);
   const totalBagsThisMonth = productionHistory
     .filter(p => {
@@ -46,10 +46,10 @@ export default function Dashboard() {
           description="In warehouse"
         />
         <StatCard
-          title="Formula Items"
-          value={formulaItems}
+          title="Formulas"
+          value={totalFormulas}
           icon={FlaskConical}
-          description="Ingredients per bag"
+          description="Bag recipes"
           variant="primary"
         />
         <StatCard
