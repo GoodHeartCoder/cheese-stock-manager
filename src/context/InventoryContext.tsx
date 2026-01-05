@@ -11,6 +11,8 @@ interface InventoryContextType {
   deleteIngredient: (id: string) => void;
   updateFormula: (formula: Formula) => void;
   addProduction: (entry: Omit<ProductionEntry, 'id'>) => void;
+  updateProduction: (id: string, newBagsProduced: number) => void;
+  deleteProduction: (id: string) => void;
   getIngredientById: (id: string) => Ingredient | undefined;
 }
 
@@ -90,6 +92,76 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return state.ingredients.find(ing => ing.id === id);
   };
 
+  const updateProduction = (id: string, newBagsProduced: number) => {
+    setState(prev => {
+      const entry = prev.productionHistory.find(e => e.id === id);
+      if (!entry) return prev;
+
+      const oldBags = entry.bagsProduced;
+      const bagDifference = newBagsProduced - oldBags;
+
+      // Calculate the ratio to adjust ingredients
+      const ratio = newBagsProduced / oldBags;
+
+      // Update ingredients in stock based on the difference
+      const updatedIngredients = prev.ingredients.map(ing => {
+        const usedItem = entry.ingredientsUsed.find(u => u.ingredientId === ing.id);
+        if (usedItem) {
+          // Calculate the difference in quantity used
+          const oldQuantity = usedItem.quantityUsed;
+          const newQuantity = oldQuantity * ratio;
+          const quantityDifference = newQuantity - oldQuantity;
+          // Deduct more if bags increased, add back if bags decreased
+          return { ...ing, quantity: Math.max(0, ing.quantity - quantityDifference) };
+        }
+        return ing;
+      });
+
+      // Update the production entry
+      const updatedHistory = prev.productionHistory.map(e => {
+        if (e.id === id) {
+          return {
+            ...e,
+            bagsProduced: newBagsProduced,
+            ingredientsUsed: e.ingredientsUsed.map(item => ({
+              ...item,
+              quantityUsed: item.quantityUsed * ratio,
+            })),
+          };
+        }
+        return e;
+      });
+
+      return {
+        ...prev,
+        ingredients: updatedIngredients,
+        productionHistory: updatedHistory,
+      };
+    });
+  };
+
+  const deleteProduction = (id: string) => {
+    setState(prev => {
+      const entry = prev.productionHistory.find(e => e.id === id);
+      if (!entry) return prev;
+
+      // Restore ingredients to stock
+      const updatedIngredients = prev.ingredients.map(ing => {
+        const usedItem = entry.ingredientsUsed.find(u => u.ingredientId === ing.id);
+        if (usedItem) {
+          return { ...ing, quantity: ing.quantity + usedItem.quantityUsed };
+        }
+        return ing;
+      });
+
+      return {
+        ...prev,
+        ingredients: updatedIngredients,
+        productionHistory: prev.productionHistory.filter(e => e.id !== id),
+      };
+    });
+  };
+
   return (
     <InventoryContext.Provider
       value={{
@@ -101,6 +173,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         deleteIngredient,
         updateFormula,
         addProduction,
+        updateProduction,
+        deleteProduction,
         getIngredientById,
       }}
     >
