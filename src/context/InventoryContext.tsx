@@ -4,21 +4,24 @@ import { Ingredient, Formula, ProductionEntry, InventoryState } from '@/types/in
 
 interface InventoryContextType {
   ingredients: Ingredient[];
-  formula: Formula;
+  formulas: Formula[];
   productionHistory: ProductionEntry[];
   addIngredient: (ingredient: Omit<Ingredient, 'id'>) => void;
   updateIngredient: (id: string, updates: Partial<Omit<Ingredient, 'id'>>) => void;
   deleteIngredient: (id: string) => void;
-  updateFormula: (formula: Formula) => void;
+  addFormula: (formula: Omit<Formula, 'id'>) => void;
+  updateFormula: (id: string, updates: Partial<Omit<Formula, 'id'>>) => void;
+  deleteFormula: (id: string) => void;
   addProduction: (entry: Omit<ProductionEntry, 'id'>) => void;
   updateProduction: (id: string, newBagsProduced: number) => void;
   deleteProduction: (id: string) => void;
   getIngredientById: (id: string) => Ingredient | undefined;
+  getFormulaById: (id: string) => Formula | undefined;
 }
 
 const defaultState: InventoryState = {
   ingredients: [],
-  formula: { items: [] },
+  formulas: [],
   productionHistory: [],
 };
 
@@ -51,17 +54,42 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     setState(prev => ({
       ...prev,
       ingredients: prev.ingredients.filter(ing => ing.id !== id),
-      formula: {
-        items: prev.formula.items.filter(item => item.ingredientId !== id),
-      },
+      formulas: prev.formulas.map(formula => ({
+        ...formula,
+        items: formula.items.filter(item => item.ingredientId !== id),
+      })),
     }));
   };
 
-  const updateFormula = (formula: Formula) => {
+  const addFormula = (formula: Omit<Formula, 'id'>) => {
+    const newFormula: Formula = {
+      ...formula,
+      id: crypto.randomUUID(),
+    };
     setState(prev => ({
       ...prev,
-      formula,
+      formulas: [...prev.formulas, newFormula],
     }));
+  };
+
+  const updateFormula = (id: string, updates: Partial<Omit<Formula, 'id'>>) => {
+    setState(prev => ({
+      ...prev,
+      formulas: prev.formulas.map(formula =>
+        formula.id === id ? { ...formula, ...updates } : formula
+      ),
+    }));
+  };
+
+  const deleteFormula = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      formulas: prev.formulas.filter(formula => formula.id !== id),
+    }));
+  };
+
+  const getFormulaById = (id: string) => {
+    return state.formulas.find(formula => formula.id === id);
   };
 
   const addProduction = (entry: Omit<ProductionEntry, 'id'>) => {
@@ -166,16 +194,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     <InventoryContext.Provider
       value={{
         ingredients: state.ingredients,
-        formula: state.formula,
+        formulas: state.formulas,
         productionHistory: state.productionHistory,
         addIngredient,
         updateIngredient,
         deleteIngredient,
+        addFormula,
         updateFormula,
+        deleteFormula,
         addProduction,
         updateProduction,
         deleteProduction,
         getIngredientById,
+        getFormulaById,
       }}
     >
       {children}
