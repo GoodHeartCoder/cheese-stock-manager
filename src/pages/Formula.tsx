@@ -37,7 +37,7 @@ import { Formula as FormulaType } from '@/types/inventory';
 
 export default function Formula() {
   const { ingredients, formulas, addFormula, updateFormula, deleteFormula, getIngredientById } = useInventory();
-  const [selectedFormula, setSelectedFormula] = useState<FormulaType | null>(formulas[0] || null);
+  const [selectedFormula, setSelectedFormula] = useState<FormulaType | null>((formulas && formulas[0]) || null);
   const [selectedIngredient, setSelectedIngredient] = useState('');
   const [quantity, setQuantity] = useState('');
   const [showNewFormulaDialog, setShowNewFormulaDialog] = useState(false);
@@ -46,8 +46,8 @@ export default function Formula() {
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameValue, setRenameValue] = useState('');
 
-  const availableIngredients = ingredients.filter(
-    ing => !selectedFormula?.items.some(item => item.ingredientId === ing.id)
+  const availableIngredients = (ingredients || []).filter(
+    ing => !selectedFormula?.items?.some(item => item.ingredientId === ing.id)
   );
 
   const handleCreateFormula = () => {
@@ -108,7 +108,7 @@ export default function Formula() {
   const handleDeleteFormula = () => {
     if (!selectedFormula) return;
     deleteFormula(selectedFormula.id);
-    setSelectedFormula(formulas.filter(f => f.id !== selectedFormula.id)[0] || null);
+    setSelectedFormula((formulas || []).filter(f => f.id !== selectedFormula.id)[0] || null);
     setShowDeleteConfirm(false);
     toast.success('Formula deleted');
   };
@@ -122,9 +122,9 @@ export default function Formula() {
   };
 
   // Sync selectedFormula with formulas state
-  const currentFormula = formulas.find(f => f.id === selectedFormula?.id) || null;
+  const currentFormula = (formulas || []).find(f => f.id === selectedFormula?.id) || null;
 
-  if (ingredients.length === 0) {
+  if ((ingredients?.length || 0) === 0) {
     return (
       <Layout>
         <PageHeader
@@ -159,22 +159,22 @@ export default function Formula() {
       />
 
       {/* Formula Selector */}
-      {formulas.length > 0 && (
+      {(formulas?.length || 0) > 0 && (
         <div className="bg-card rounded-xl border border-border p-5 mb-6">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
             <div className="flex-1 space-y-2">
               <Label>Select Formula</Label>
               <Select
                 value={currentFormula?.id || ''}
-                onValueChange={(id) => setSelectedFormula(formulas.find(f => f.id === id) || null)}
+                onValueChange={(id) => setSelectedFormula((formulas || []).find(f => f.id === id) || null)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a formula" />
                 </SelectTrigger>
                 <SelectContent>
-                  {formulas.map(formula => (
+                  {(formulas || []).map(formula => (
                     <SelectItem key={formula.id} value={formula.id}>
-                      {formula.name} ({formula.items.length} ingredients)
+                      {formula.name} ({formula.items?.length || 0} ingredients)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -206,7 +206,7 @@ export default function Formula() {
         </div>
       )}
 
-      {formulas.length === 0 ? (
+      {(formulas?.length || 0) === 0 ? (
         <EmptyState
           icon={<FlaskConical className="w-6 h-6" />}
           title="No formulas yet"
@@ -260,7 +260,7 @@ export default function Formula() {
           )}
 
           {/* Current Formula Items */}
-          {currentFormula.items.length === 0 ? (
+          {(currentFormula.items?.length || 0) === 0 ? (
             <EmptyState
               icon={<FlaskConical className="w-6 h-6" />}
               title="No ingredients in formula"
@@ -272,7 +272,7 @@ export default function Formula() {
                 <h2 className="font-semibold text-foreground">{currentFormula.name} (per bag)</h2>
               </div>
               <div className="divide-y divide-border">
-                {currentFormula.items.map(item => {
+                {(currentFormula.items || []).map(item => {
                   const ingredient = getIngredientById(item.ingredientId);
                   if (!ingredient) return null;
 
