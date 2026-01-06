@@ -12,6 +12,7 @@ interface InventoryContextType {
   deleteIngredient: (id: string) => void;
   updateFormula: (formula: Formula) => void;
   addProduction: (entry: Omit<ProductionEntry, 'id'>) => void;
+  updateProduction: (id: string, updates: { bagsProduced: number }) => void;
   getIngredientById: (id: string) => Ingredient | undefined;
 }
 
@@ -134,6 +135,63 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const updateProduction = (id: string, updates: { bagsProduced: number }) => {
+    setState(prev => {
+      const entryIndex = prev.productionHistory.findIndex(entry => entry.id === id);
+      if (entryIndex === -1) return prev;
+
+      const oldEntry = prev.productionHistory[entryIndex];
+      const oldBags = oldEntry.bagsProduced;
+
+      // Avoid division by zero and no-op edits
+      if (oldBags === 0 || updates.bagsProduced === oldBags) {
+        return prev;
+      }
+
+      const newBags = updates.bagsProduced;
+
+      // Compute how much each ingredient's total usage should change
+      const ingredientDeltas = new Map<string, number>();
+      oldEntry.ingredientsUsed.forEach(item => {
+        const perBag = item.quantityUsed / oldBags;
+        const newTotal = perBag * newBags;
+        const delta = newTotal - item.quantityUsed; // positive = use more, negative = give back
+        ingredientDeltas.set(item.ingredientId, delta);
+      });
+
+      // Adjust warehouse inventory for ingredients that still exist
+      const updatedIngredients = prev.ingredients.map(ing => {
+        const delta = ingredientDeltas.get(ing.id);
+        if (delta === undefined) return ing;
+
+        const newQuantity = ing.quantity - delta;
+        return { ...ing, quantity: Math.max(0, newQuantity) };
+      });
+
+      // Update the stored production entry's totals
+      const updatedEntry: ProductionEntry = {
+        ...oldEntry,
+        bagsProduced: newBags,
+        ingredientsUsed: oldEntry.ingredientsUsed.map(item => {
+          const perBag = item.quantityUsed / oldBags;
+          return {
+            ...item,
+            quantityUsed: perBag * newBags,
+          };
+        }),
+      };
+
+      const updatedHistory = [...prev.productionHistory];
+      updatedHistory[entryIndex] = updatedEntry;
+
+      return {
+        ...prev,
+        ingredients: updatedIngredients,
+        productionHistory: updatedHistory,
+      };
+    });
+  };
+
   const getIngredientById = (id: string) => {
     return state.ingredients.find(ing => ing.id === id);
   };
@@ -149,6 +207,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         deleteIngredient,
         updateFormula,
         addProduction,
+        updateProduction,
         getIngredientById,
       }}
     >

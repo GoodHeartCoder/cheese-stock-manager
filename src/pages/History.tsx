@@ -3,8 +3,10 @@ import { Layout } from '@/components/Layout';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useInventory } from '@/context/InventoryContext';
-import { Calendar, ChevronLeft, ChevronRight, Package } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Package, Pencil } from 'lucide-react';
 import { 
   format, 
   startOfMonth, 
@@ -23,13 +25,17 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import { ProductionEntry } from '@/types/inventory';
 
 export default function History() {
-  const { productionHistory } = useInventory();
+  const { productionHistory, updateProduction } = useInventory();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedEntries, setSelectedEntries] = useState<ProductionEntry[]>([]);
+  const [selectedEntry, setSelectedEntry] = useState<ProductionEntry | null>(null);
+  const [editingEntry, setEditingEntry] = useState<ProductionEntry | null>(null);
+  const [newBagsCount, setNewBagsCount] = useState('');
 
   const productionByDate = useMemo(() => {
     const map = new Map<string, ProductionEntry[]>();
@@ -60,6 +66,21 @@ export default function History() {
   const getEntriesForDay = (date: Date): ProductionEntry[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
     return productionByDate.get(dateKey) || [];
+  };
+
+  const handleUpdateProduction = () => {
+    if (!editingEntry || !newBagsCount) return;
+
+    const bags = parseInt(newBagsCount, 10);
+    if (isNaN(bags) || bags < 0) {
+      toast.error('Please enter a valid number of bags');
+      return;
+    }
+
+    updateProduction(editingEntry.id, { bagsProduced: bags });
+    toast.success('Production updated');
+    setEditingEntry(null);
+    setSelectedEntry(null);
   };
 
   if (productionHistory.length === 0) {
@@ -134,7 +155,7 @@ export default function History() {
               return (
                 <button
                   key={day.toISOString()}
-                  onClick={() => entries.length > 0 && setSelectedEntries(entries)}
+                  onClick={() => entries.length > 0 && setSelectedEntry(entries[0])}
                   disabled={entries.length === 0}
                   className={`
                     aspect-square p-1 rounded-lg flex flex-col items-center justify-center text-sm transition-colors
@@ -169,44 +190,88 @@ export default function History() {
       </div>
 
       {/* Production Detail Dialog */}
-      <Dialog open={selectedEntries.length > 0} onOpenChange={() => setSelectedEntries([])}>
+      <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Production on {selectedEntries[0] && format(new Date(selectedEntries[0].date), 'MMMM d, yyyy')}
+              Production on {selectedEntry && format(new Date(selectedEntry.date), 'MMMM d, yyyy')}
             </DialogTitle>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-6">
-            {selectedEntries.map(entry => (
-              <div key={entry.id} className="space-y-4 border-b border-border pb-4 last:border-0 last:pb-0">
+          {selectedEntry && (
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 p-4 bg-accent/10 rounded-lg">
                   <Package className="w-8 h-8 text-accent" />
                   <div>
                     <p className="text-2xl font-bold text-foreground">
-                      {entry.bagsProduced} bags
+                      {selectedEntry.bagsProduced} bags
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      Produced at {format(new Date(entry.date), 'p')}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Total for the day</p>
                   </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setEditingEntry(selectedEntry);
+                    setNewBagsCount(selectedEntry.bagsProduced.toString());
+                    setSelectedEntry(null);
+                  }}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              </div>
 
-                <div>
-                  <h3 className="font-medium text-foreground mb-2">Ingredients Used</h3>
-                  <div className="space-y-2">
-                    {entry.ingredientsUsed.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                        <span className="text-foreground">{item.ingredientName}</span>
-                        <span className="text-muted-foreground">
-                          {item.quantityUsed} {item.unit}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+              <div>
+                <h3 className="font-medium text-foreground mb-2">Ingredients Used</h3>
+                <div className="space-y-2">
+                  {selectedEntry.ingredientsUsed.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                    >
+                      <span className="text-foreground">{item.ingredientName}</span>
+                      <span className="text-muted-foreground">
+                        {item.quantityUsed.toFixed(2)} {item.unit}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Production Dialog */}
+      <Dialog open={!!editingEntry} onOpenChange={() => setEditingEntry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Daily Production</DialogTitle>
+          </DialogHeader>
+          {editingEntry && (
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                Editing production for {format(new Date(editingEntry.date), 'MMMM d, yyyy')}
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="bags-edit">Total bags for this day</Label>
+                <Input
+                  id="bags-edit"
+                  type="number"
+                  value={newBagsCount}
+                  onChange={e => setNewBagsCount(e.target.value)}
+                  min={0}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingEntry(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateProduction}>Save changes</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Layout>
