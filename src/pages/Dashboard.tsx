@@ -131,7 +131,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <span className="text-sm text-muted-foreground">
-                    {prod.ingredientsUsed.length} ingredients
+                    {prod.ingredientsUsed?.length || 0} ingredients
                   </span>
                 </div>
               ))}
