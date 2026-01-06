@@ -5,8 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { InventoryProvider } from "@/context/InventoryContext";
 import Dashboard from "./pages/Dashboard";
-// ... imports
-// ...
+import Warehouse from "./pages/Warehouse";
+import Formula from "./pages/Formula";
+import Production from "./pages/Production";
+import History from "./pages/History";
+import Reports from "./pages/Reports";
+import NotFound from "./pages/NotFound";
+
+const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
