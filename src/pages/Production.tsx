@@ -73,7 +73,7 @@ export default function Production() {
     navigate('/history');
   };
 
-  if (formulas.length === 0) {
+  if ((formulas?.length || 0) === 0) {
     return (
       <Layout>
         <PageHeader
@@ -94,7 +94,7 @@ export default function Production() {
     );
   }
 
-  if (ingredients.length === 0) {
+  if ((ingredients?.length || 0) === 0) {
     return (
       <Layout>
         <PageHeader
@@ -136,7 +136,7 @@ export default function Production() {
                   <SelectValue placeholder="Select a formula" />
                 </SelectTrigger>
                 <SelectContent>
-                  {formulas.map(formula => (
+                  {(formulas || []).map(formula => (
                     <SelectItem key={formula.id} value={formula.id}>
                       {formula.name} ({formula.items.length} ingredients)
                     </SelectItem>

@@ -47,7 +47,7 @@ export default function History() {
 
   const productionByDate = useMemo(() => {
     const map = new Map<string, ProductionEntry[]>();
-    productionHistory.forEach(entry => {
+    (productionHistory || []).forEach(entry => {
       const dateKey = format(new Date(entry.date), 'yyyy-MM-dd');
       const existing = map.get(dateKey) || [];
       map.set(dateKey, [...existing, entry]);
@@ -116,7 +116,7 @@ export default function History() {
     }
   };
 
-  if (productionHistory.length === 0) {
+  if ((productionHistory?.length || 0) === 0) {
     return (
       <Layout>
         <PageHeader
@@ -285,7 +285,7 @@ export default function History() {
               <div>
                 <h3 className="font-medium text-foreground mb-2">Ingredients Used</h3>
                 <div className="space-y-2">
-                  {selectedProduction.ingredientsUsed.map((item, idx) => (
+                  {(selectedProduction.ingredientsUsed || []).map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                       <span className="text-foreground">{item.ingredientName}</span>
                       <span className="text-muted-foreground">
