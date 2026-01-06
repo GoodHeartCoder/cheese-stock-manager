@@ -9,24 +9,26 @@ import { Package, FlaskConical, Calendar, Plus, ArrowRight } from 'lucide-react'
 import { format } from 'date-fns';
 
 export default function Dashboard() {
-  const { ingredients, formula, productionHistory } = useInventory();
+  const { ingredients, formulas, productionHistory } = useInventory();
 
   const totalIngredients = ingredients.length;
-  const formulaItems = formula.items.length;
+  // Use formulas.length instead of formula.items
+  const totalFormulas = formulas.length;
+
   const recentProductions = productionHistory.slice(0, 5);
   const totalBagsThisMonth = productionHistory
     .filter(p => {
       const productionDate = new Date(p.date);
       const now = new Date();
-      return productionDate.getMonth() === now.getMonth() && 
-             productionDate.getFullYear() === now.getFullYear();
+      return productionDate.getMonth() === now.getMonth() &&
+        productionDate.getFullYear() === now.getFullYear();
     })
     .reduce((sum, p) => sum + p.bagsProduced, 0);
 
   return (
     <Layout>
-      <PageHeader 
-        title="Dashboard" 
+      <PageHeader
+        title="Dashboard"
         description="Overview of your cheese factory inventory"
         action={
           <Button asChild>
@@ -46,10 +48,10 @@ export default function Dashboard() {
           description="In warehouse"
         />
         <StatCard
-          title="Formula Items"
-          value={formulaItems}
+          title="Cheese Formulas"
+          value={totalFormulas}
           icon={FlaskConical}
-          description="Ingredients per bag"
+          description="Defined recipes"
           variant="primary"
         />
         <StatCard
@@ -72,7 +74,7 @@ export default function Dashboard() {
               </Link>
             </Button>
           </div>
-          
+
           {ingredients.length === 0 ? (
             <EmptyState
               icon={<Package className="w-6 h-6" />}
@@ -108,7 +110,7 @@ export default function Dashboard() {
               </Link>
             </Button>
           </div>
-          
+
           {recentProductions.length === 0 ? (
             <EmptyState
               icon={<Calendar className="w-6 h-6" />}
@@ -130,9 +132,14 @@ export default function Dashboard() {
                       {format(new Date(prod.date), 'MMM d, yyyy')}
                     </p>
                   </div>
-                  <span className="text-sm text-muted-foreground">
-                    {prod.ingredientsUsed.length} ingredients
-                  </span>
+                  <div className="text-right">
+                    <span className="block text-sm font-medium text-foreground">
+                      {prod.formulaName || 'Unknown Formula'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {prod.ingredientsUsed.length} ingredients
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

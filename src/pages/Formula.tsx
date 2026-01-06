@@ -12,30 +12,73 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useInventory } from '@/context/InventoryContext';
-import { FlaskConical, Plus, Trash2, Package } from 'lucide-react';
+import { FlaskConical, Plus, Trash2, Package, Pencil, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
+import { Formula } from '@/types/inventory';
 
-export default function Formula() {
-  const { ingredients, formula, updateFormula, getIngredientById } = useInventory();
+export default function FormulaPage() {
+  const { ingredients, formulas, addFormula, updateFormula, deleteFormula, getIngredientById } = useInventory();
+  const [selectedFormulaId, setSelectedFormulaId] = useState<string | null>(null);
+
+  // Create Formula State
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newFormulaName, setNewFormulaName] = useState('');
+
+  // Editing State
   const [selectedIngredient, setSelectedIngredient] = useState('');
   const [quantity, setQuantity] = useState('');
 
-  const availableIngredients = ingredients.filter(
-    ing => !formula.items.some(item => item.ingredientId === ing.id)
-  );
+  const activeFormula = selectedFormulaId ? formulas.find(f => f.id === selectedFormulaId) : null;
+
+  const availableIngredients = activeFormula
+    ? ingredients.filter(ing => !activeFormula.items.some(item => item.ingredientId === ing.id))
+    : [];
+
+  const handleCreateFormula = () => {
+    if (!newFormulaName.trim()) {
+      toast.error('Please enter a formula name');
+      return;
+    }
+    addFormula(newFormulaName, []);
+    setNewFormulaName('');
+    setIsCreateOpen(false);
+    toast.success('Formula created');
+  };
+
+  const handleDeleteFormula = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Are you sure you want to delete this formula? This cannot be undone.')) {
+      deleteFormula(id);
+      if (selectedFormulaId === id) setSelectedFormulaId(null);
+      toast.success('Formula deleted');
+    }
+  };
 
   const handleAddToFormula = () => {
-    if (!selectedIngredient || !quantity) {
+    if (!activeFormula || !selectedIngredient || !quantity) {
       toast.error('Please select an ingredient and enter quantity');
       return;
     }
 
-    updateFormula({
+    const qty = parseFloat(quantity);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error('Quantity must be greater than 0');
+      return;
+    }
+
+    updateFormula(activeFormula.id, {
       items: [
-        ...formula.items,
-        { ingredientId: selectedIngredient, quantityPerBag: parseFloat(quantity) },
+        ...activeFormula.items,
+        { ingredientId: selectedIngredient, quantityPerBag: qty },
       ],
     });
     setSelectedIngredient('');
@@ -44,18 +87,39 @@ export default function Formula() {
   };
 
   const handleRemoveFromFormula = (ingredientId: string) => {
-    updateFormula({
-      items: formula.items.filter(item => item.ingredientId !== ingredientId),
+    if (!activeFormula) return;
+    updateFormula(activeFormula.id, {
+      items: activeFormula.items.filter(item => item.ingredientId !== ingredientId),
     });
     toast.success('Removed from formula');
   };
 
   const handleUpdateQuantity = (ingredientId: string, newQuantity: string) => {
+    if (!activeFormula) return;
     const parsed = parseFloat(newQuantity);
+
+    // If invalid or negative, don't update state (effectively read-only or revert)
+    // Or we could allow it but block saving? 
+    // Here we just ignore invalid inputs, keeping the old value effectively or waiting for valid input.
+    // Better UX: Allow typing but check before save?
+    // Since this is onChange, we'll allow empty string (clearing) but block negatives.
+
+    if (newQuantity === '') {
+      // Allow clearing to type new number
+      updateFormula(activeFormula.id, {
+        items: activeFormula.items.map(item =>
+          item.ingredientId === ingredientId
+            ? { ...item, quantityPerBag: 0 } // temp 0
+            : item
+        ),
+      });
+      return;
+    }
+
     if (isNaN(parsed) || parsed < 0) return;
 
-    updateFormula({
-      items: formula.items.map(item =>
+    updateFormula(activeFormula.id, {
+      items: activeFormula.items.map(item =>
         item.ingredientId === ingredientId
           ? { ...item, quantityPerBag: parsed }
           : item
@@ -67,8 +131,8 @@ export default function Formula() {
     return (
       <Layout>
         <PageHeader
-          title="Formula"
-          description="Define how much of each ingredient goes into one bag"
+          title="Formulas"
+          description="Define cheese recipes"
         />
         <EmptyState
           icon={<Package className="w-6 h-6" />}
@@ -84,12 +148,97 @@ export default function Formula() {
     );
   }
 
+  // LIST VIEW
+  if (!activeFormula) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-between mb-6">
+          <PageHeader
+            title="Formulas"
+            description="Manage your cheese formulas"
+          />
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            New Formula
+          </Button>
+        </div>
+
+        {formulas.length === 0 ? (
+          <EmptyState
+            icon={<FlaskConical className="w-6 h-6" />}
+            title="No formulas defined"
+            description="Create your first formula to start production"
+            action={
+              <Button onClick={() => setIsCreateOpen(true)}>
+                Create Formula
+              </Button>
+            }
+          />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {formulas.map(formula => (
+              <div
+                key={formula.id}
+                className="bg-card hover:bg-accent/5 transition-colors rounded-xl border border-border p-5 cursor-pointer group"
+                onClick={() => setSelectedFormulaId(formula.id)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                    <FlaskConical className="w-6 h-6" />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive transition-colors hover:bg-destructive/10"
+                    onClick={(e) => handleDeleteFormula(formula.id, e)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+                <h3 className="font-semibold text-lg mb-1">{formula.name}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {formula.items.length} ingredient{formula.items.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Formula</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-2">
+              <Label>Formula Name</Label>
+              <Input
+                placeholder="e.g. Cheddar, Gouda"
+                value={newFormulaName}
+                onChange={(e) => setNewFormulaName(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+              <Button onClick={handleCreateFormula}>Create</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </Layout>
+    );
+  }
+
+  // DETAIL VIEW (Edit Formula)
   return (
     <Layout>
-      <PageHeader
-        title="Formula"
-        description="Define how much of each ingredient goes into one bag"
-      />
+      <div className="flex items-center gap-4 mb-6">
+        <Button variant="ghost" size="icon" onClick={() => setSelectedFormulaId(null)}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{activeFormula.name}</h1>
+          <p className="text-muted-foreground">Edit formula ingredients</p>
+        </div>
+      </div>
 
       {/* Add to Formula */}
       {availableIngredients.length > 0 && (
@@ -130,29 +279,27 @@ export default function Formula() {
         </div>
       )}
 
-      {/* Current Formula */}
-      {formula.items.length === 0 ? (
-        <EmptyState
-          icon={<FlaskConical className="w-6 h-6" />}
-          title="No formula defined"
-          description="Add ingredients to define how much goes into each bag"
-        />
-      ) : (
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="p-4 border-b border-border bg-secondary/30">
-            <h2 className="font-semibold text-foreground">Current Formula (per bag)</h2>
-          </div>
-          <div className="divide-y divide-border">
-            {formula.items.map(item => {
+      {/* Items List */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="p-4 border-b border-border bg-secondary/30">
+          <h2 className="font-semibold text-foreground">Ingredients (per bag)</h2>
+        </div>
+        <div className="divide-y divide-border">
+          {activeFormula.items.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              No ingredients in this formula yet. Use the form above to add some.
+            </div>
+          ) : (
+            activeFormula.items.map(item => {
               const ingredient = getIngredientById(item.ingredientId);
               if (!ingredient) return null;
-              
+
               return (
                 <div key={item.ingredientId} className="flex items-center justify-between p-4">
                   <div>
                     <p className="font-medium text-foreground">{ingredient.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      Available: {ingredient.quantity} {ingredient.unit}
+                      Available in Stock: {ingredient.quantity} {ingredient.unit}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -176,10 +323,10 @@ export default function Formula() {
                   </div>
                 </div>
               );
-            })}
-          </div>
+            })
+          )}
         </div>
-      )}
+      </div>
     </Layout>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { PageHeader } from '@/components/PageHeader';
@@ -6,6 +6,13 @@ import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useInventory } from '@/context/InventoryContext';
 import { FlaskConical, Package, AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,14 +20,26 @@ import { format } from 'date-fns';
 
 export default function Production() {
   const navigate = useNavigate();
-  const { ingredients, formula, addProduction, getIngredientById } = useInventory();
+  const { ingredients, formulas, addProduction, getIngredientById } = useInventory();
+
+  const [selectedFormulaId, setSelectedFormulaId] = useState<string>('');
   const [bags, setBags] = useState('');
   const [showPreview, setShowPreview] = useState(false);
 
+  // Auto-select if only one formula exists
+  useEffect(() => {
+    if (formulas.length === 1 && !selectedFormulaId) {
+      setSelectedFormulaId(formulas[0].id);
+    }
+  }, [formulas, selectedFormulaId]);
+
+  const activeFormula = selectedFormulaId ? formulas.find(f => f.id === selectedFormulaId) : null;
   const bagsNumber = parseInt(bags) || 0;
 
   const calculatedUsage = useMemo(() => {
-    return formula.items.map(item => {
+    if (!activeFormula) return [];
+
+    return activeFormula.items.map(item => {
       const ingredient = getIngredientById(item.ingredientId);
       const needed = item.quantityPerBag * bagsNumber;
       const available = ingredient?.quantity || 0;
@@ -36,19 +55,21 @@ export default function Production() {
         hasEnough,
       };
     });
-  }, [formula.items, bagsNumber, getIngredientById]);
+  }, [activeFormula, bagsNumber, getIngredientById]);
 
-  const canProduce = calculatedUsage.length > 0 && calculatedUsage.every(u => u.hasEnough) && bagsNumber > 0;
+  const canProduce = activeFormula && calculatedUsage.length > 0 && calculatedUsage.every(u => u.hasEnough) && bagsNumber > 0;
 
   const handleConfirmProduction = () => {
-    if (!canProduce) {
-      toast.error('Cannot produce: insufficient ingredients');
+    if (!canProduce || !activeFormula) {
+      toast.error('Cannot produce: insufficient ingredients or invalid formula');
       return;
     }
 
     addProduction({
       date: new Date().toISOString(),
       bagsProduced: bagsNumber,
+      formulaId: activeFormula.id,
+      formulaName: activeFormula.name,
       ingredientsUsed: calculatedUsage.map(u => ({
         ingredientId: u.ingredientId,
         ingredientName: u.ingredientName,
@@ -57,11 +78,11 @@ export default function Production() {
       })),
     });
 
-    toast.success(`Produced ${bagsNumber} bags!`);
+    toast.success(`Produced ${bagsNumber} bags of ${activeFormula.name}!`);
     navigate('/history');
   };
 
-  if (formula.items.length === 0) {
+  if (formulas.length === 0) {
     return (
       <Layout>
         <PageHeader
@@ -71,10 +92,10 @@ export default function Production() {
         <EmptyState
           icon={<FlaskConical className="w-6 h-6" />}
           title="No formula defined"
-          description="Define your bag formula first before recording production"
+          description="Define at least one cheese formula to start production"
           action={
             <Button asChild>
-              <Link to="/formula">Go to Formula</Link>
+              <Link to="/formula">Go to Formulas</Link>
             </Button>
           }
         />
@@ -113,7 +134,23 @@ export default function Production() {
       <div className="max-w-2xl">
         {/* Input Section */}
         <div className="bg-card rounded-xl border border-border p-6 mb-6">
-          <div className="space-y-4">
+          <div className="space-y-6">
+
+            {/* Formula Select */}
+            <div className="space-y-2">
+              <Label>Select Formula</Label>
+              <Select value={selectedFormulaId} onValueChange={setSelectedFormulaId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a cheese type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {formulas.map(f => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="bags" className="text-base font-medium">
                 How many bags did you produce?
@@ -125,9 +162,14 @@ export default function Production() {
                 placeholder="Enter number of bags"
                 value={bags}
                 onChange={e => {
-                  setBags(e.target.value);
-                  setShowPreview(true);
+                  const val = e.target.value;
+                  // Prevent negative typing if possible, or just handle in validation
+                  if (val === '' || parseInt(val) > 0) {
+                    setBags(val);
+                    setShowPreview(true);
+                  }
                 }}
+                disabled={!selectedFormulaId}
                 className="text-lg h-12"
               />
             </div>
@@ -138,11 +180,11 @@ export default function Production() {
         </div>
 
         {/* Preview Section */}
-        {showPreview && bagsNumber > 0 && (
+        {showPreview && bagsNumber > 0 && activeFormula && (
           <div className="bg-card rounded-xl border border-border overflow-hidden mb-6">
             <div className="p-4 border-b border-border bg-secondary/30">
               <h2 className="font-semibold text-foreground">
-                Ingredients needed for {bagsNumber} bag{bagsNumber > 1 ? 's' : ''}
+                Ingredients needed for {bagsNumber} bags of {activeFormula.name}
               </h2>
             </div>
             <div className="divide-y divide-border">
@@ -178,14 +220,14 @@ export default function Production() {
         )}
 
         {/* Action Button */}
-        {bagsNumber > 0 && (
+        {bagsNumber > 0 && selectedFormulaId && (
           <Button
             size="lg"
             className="w-full"
             onClick={handleConfirmProduction}
             disabled={!canProduce}
           >
-            {canProduce ? `Confirm Production of ${bagsNumber} Bags` : 'Insufficient Ingredients'}
+            {canProduce ? `Confirm Production` : 'Insufficient Ingredients'}
           </Button>
         )}
       </div>

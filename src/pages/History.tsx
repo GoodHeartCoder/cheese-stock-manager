@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useInventory } from '@/context/InventoryContext';
-import { Calendar, ChevronLeft, ChevronRight, Package, Pencil } from 'lucide-react';
-import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  eachDayOfInterval, 
-  isSameMonth, 
+import { Calendar, ChevronLeft, ChevronRight, Package, Pencil, Trash2 } from 'lucide-react';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameMonth,
   isSameDay,
   addMonths,
   subMonths,
@@ -31,9 +31,13 @@ import { toast } from 'sonner';
 import { ProductionEntry } from '@/types/inventory';
 
 export default function History() {
-  const { productionHistory, updateProduction } = useInventory();
+  const { productionHistory, updateProduction, deleteProduction, ingredients } = useInventory();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedEntry, setSelectedEntry] = useState<ProductionEntry | null>(null);
+
+  // State for viewing a day's productions
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+
+  // State for editing a specific entry
   const [editingEntry, setEditingEntry] = useState<ProductionEntry | null>(null);
   const [newBagsCount, setNewBagsCount] = useState('');
 
@@ -68,19 +72,46 @@ export default function History() {
     return productionByDate.get(dateKey) || [];
   };
 
+  const activeDayEntries = selectedDay ? getEntriesForDay(selectedDay) : [];
+
+
   const handleUpdateProduction = () => {
     if (!editingEntry || !newBagsCount) return;
 
     const bags = parseInt(newBagsCount, 10);
-    if (isNaN(bags) || bags < 0) {
-      toast.error('Please enter a valid number of bags');
+    if (isNaN(bags) || bags <= 0) {
+      toast.error('Please enter a valid positive number of bags');
       return;
     }
 
+    // Client-side Stock Check to give friendly error
+    // (Context also blocks it, but this gives the Toast)
+    const oldBags = editingEntry.bagsProduced;
+    if (bags > oldBags) {
+      // Calculate needs
+      for (const item of editingEntry.ingredientsUsed) {
+        const perBag = item.quantityUsed / oldBags;
+        const totalNew = perBag * bags;
+        const neededDelta = totalNew - item.quantityUsed;
+
+        // Find in stock
+        const inStock = useInventory().ingredients.find(i => i.id === item.ingredientId);
+        if (!inStock || inStock.quantity < neededDelta) {
+          toast.error(`Insufficient stock: Not enough ${item.ingredientName}. Need ${neededDelta.toFixed(1)}${item.unit} more.`);
+          return;
+        }
+      }
+    }
+
     updateProduction(editingEntry.id, { bagsProduced: bags });
+
+    // Naive check if it actually updated? 
+    // Since updateProduction is async/setState, we can't know immediately.
+    // relying on the pre-check above is the best UX.
+
     toast.success('Production updated');
     setEditingEntry(null);
-    setSelectedEntry(null);
+    setSelectedDay(null); // Close main dialog to refresh or simplify flow
   };
 
   if (productionHistory.length === 0) {
@@ -135,7 +166,6 @@ export default function History() {
 
         {/* Calendar Grid */}
         <div className="p-4">
-          {/* Week day headers */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {weekDays.map(day => (
               <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
@@ -144,102 +174,108 @@ export default function History() {
             ))}
           </div>
 
-          {/* Calendar days */}
           <div className="grid grid-cols-7 gap-1">
             {calendarDays.map(day => {
               const isCurrentMonth = isSameMonth(day, currentMonth);
               const isToday = isSameDay(day, new Date());
               const bags = getBagsForDay(day);
-              const entries = getEntriesForDay(day);
+              const hasEntries = bags > 0;
 
               return (
                 <button
                   key={day.toISOString()}
-                  onClick={() => entries.length > 0 && setSelectedEntry(entries[0])}
-                  disabled={entries.length === 0}
+                  onClick={() => hasEntries && setSelectedDay(day)}
+                  disabled={!hasEntries}
                   className={`
-                    aspect-square p-1 rounded-lg flex flex-col items-center justify-center text-sm transition-colors
+                    aspect-square p-1 rounded-lg flex flex-col items-start justify-start text-left text-sm transition-colors overflow-hidden
                     ${!isCurrentMonth ? 'text-muted-foreground/50' : 'text-foreground'}
                     ${isToday ? 'ring-2 ring-primary' : ''}
-                    ${bags > 0 ? 'bg-accent/20 hover:bg-accent/30 cursor-pointer' : 'cursor-default'}
+                    ${hasEntries ? 'bg-accent/10 hover:bg-accent/20 cursor-pointer' : 'cursor-default'}
                   `}
                 >
-                  <span className={isToday ? 'font-bold' : ''}>{format(day, 'd')}</span>
-                  {bags > 0 && (
-                    <span className="text-xs font-medium text-accent mt-0.5">
-                      {bags}
-                    </span>
+                  <span className={`w-full text-center mb-1 ${isToday ? 'font-bold' : ''}`}>{format(day, 'd')}</span>
+                  {hasEntries && (
+                    <div className="w-full space-y-0.5">
+                      {getEntriesForDay(day).map(entry => (
+                        <div key={entry.id} className="text-[10px] leading-tight truncate w-full px-1">
+                          <span className="font-semibold text-primary">{entry.bagsProduced}</span>
+                          <span className="text-muted-foreground ml-1">{entry.formulaName}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </button>
               );
             })}
           </div>
         </div>
-
-        {/* Legend */}
-        <div className="px-4 pb-4 flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-accent/20"></div>
-            <span>Production day</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded ring-2 ring-primary"></div>
-            <span>Today</span>
-          </div>
-        </div>
       </div>
 
-      {/* Production Detail Dialog */}
-      <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
-        <DialogContent>
+      {/* Production List Dialog (Day View) */}
+      <Dialog open={!!selectedDay} onOpenChange={(open) => !open && setSelectedDay(null)}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Production on {selectedEntry && format(new Date(selectedEntry.date), 'MMMM d, yyyy')}
+              Production on {selectedDay && format(selectedDay, 'MMMM d, yyyy')}
             </DialogTitle>
           </DialogHeader>
-          {selectedEntry && (
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 p-4 bg-accent/10 rounded-lg">
-                  <Package className="w-8 h-8 text-accent" />
+          <div className="max-h-[60vh] overflow-y-auto space-y-4">
+            {activeDayEntries.map(entry => (
+              <div key={entry.id} className="bg-secondary/20 rounded-lg p-4 border border-border">
+                <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="text-2xl font-bold text-foreground">
-                      {selectedEntry.bagsProduced} bags
+                    <h3 className="font-semibold text-lg">{entry.formulaName || 'Unknown Formula'}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(entry.date), 'h:mm a')}
                     </p>
-                    <p className="text-sm text-muted-foreground">Total for the day</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      if (confirm('Are you sure you want to delete this production entry? Ingredients will be returned to stock.')) {
+                        deleteProduction(entry.id);
+                        toast.success('Production deleted');
+                        // If it was the last entry for the day, close the dialog
+                        if (activeDayEntries.length <= 1) {
+                          setSelectedDay(null);
+                        }
+                      }
+                    }}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setEditingEntry(entry);
+                      setNewBagsCount(entry.bagsProduced.toString());
+                      setSelectedDay(null);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-accent/10 text-accent rounded-md px-3 py-1 font-bold text-lg">
+                    {entry.bagsProduced} bags
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setEditingEntry(selectedEntry);
-                    setNewBagsCount(selectedEntry.bagsProduced.toString());
-                    setSelectedEntry(null);
-                  }}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </div>
 
-              <div>
-                <h3 className="font-medium text-foreground mb-2">Ingredients Used</h3>
-                <div className="space-y-2">
-                  {selectedEntry.ingredientsUsed.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                    >
+                <div className="pl-3 border-l-2 border-border space-y-1">
+                  {entry.ingredientsUsed.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
                       <span className="text-foreground">{item.ingredientName}</span>
-                      <span className="text-muted-foreground">
-                        {item.quantityUsed.toFixed(2)} {item.unit}
-                      </span>
+                      <span className="text-muted-foreground">{item.quantityUsed.toFixed(1)} {item.unit}</span>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -247,15 +283,15 @@ export default function History() {
       <Dialog open={!!editingEntry} onOpenChange={() => setEditingEntry(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Daily Production</DialogTitle>
+            <DialogTitle>Edit Production: {editingEntry?.formulaName}</DialogTitle>
           </DialogHeader>
           {editingEntry && (
             <div className="space-y-4 py-4">
               <p className="text-sm text-muted-foreground">
-                Editing production for {format(new Date(editingEntry.date), 'MMMM d, yyyy')}
+                Editing production from {format(new Date(editingEntry.date), 'MMMM d, h:mm a')}
               </p>
               <div className="space-y-2">
-                <Label htmlFor="bags-edit">Total bags for this day</Label>
+                <Label htmlFor="bags-edit">Total bags for this batch</Label>
                 <Input
                   id="bags-edit"
                   type="number"
