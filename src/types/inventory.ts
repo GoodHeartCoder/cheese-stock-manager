@@ -30,8 +30,14 @@ export interface ProductionEntry {
   }[];
 }
 
+export interface Bag {
+  formulaId: string;
+  quantity: number;
+}
+
 export interface InventoryState {
   ingredients: Ingredient[];
   formulas: Formula[];
   productionHistory: ProductionEntry[];
+  bags: Bag[];
 }

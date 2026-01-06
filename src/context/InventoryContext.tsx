@@ -1,7 +1,7 @@
 import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import { isSameDay } from 'date-fns';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Ingredient, Formula, ProductionEntry, InventoryState } from '@/types/inventory';
+import { Ingredient, Formula, ProductionEntry, InventoryState, Bag } from '@/types/inventory';
 
 interface InventoryContextType {
   ingredients: Ingredient[];
@@ -18,12 +18,17 @@ interface InventoryContextType {
   deleteProduction: (id: string) => void;
   getIngredientById: (id: string) => Ingredient | undefined;
   resetInventory: () => void;
+  // Bag Management
+  bags: Bag[];
+  updateBagCount: (formulaId: string, newQuantity: number) => void;
+  cookBags: (formulaId: string, quantity: number) => void;
 }
 
 const defaultState: InventoryState = {
   ingredients: [],
   formulas: [],
   productionHistory: [],
+  bags: [],
 };
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -171,10 +176,28 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         updatedHistory = [newEntry, ...prev.productionHistory];
       }
 
+      // Update Bags Inventory
+      const currentBags = prev.bags || []; // Handle legacy state where bags might be undefined
+      const bagIndex = currentBags.findIndex(b => b.formulaId === entry.formulaId);
+      let updatedBags = [...currentBags];
+
+      if (bagIndex > -1) {
+        updatedBags[bagIndex] = {
+          ...updatedBags[bagIndex],
+          quantity: updatedBags[bagIndex].quantity + entry.bagsProduced
+        };
+      } else {
+        updatedBags.push({
+          formulaId: entry.formulaId,
+          quantity: entry.bagsProduced
+        });
+      }
+
       return {
         ...prev,
         ingredients: updatedIngredients,
         productionHistory: updatedHistory,
+        bags: updatedBags,
       };
     });
   };
@@ -276,10 +299,31 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       const updatedHistory = [...prev.productionHistory];
       updatedHistory[entryIndex] = updatedEntry;
 
+      // Update Bags Inventory (Adjust for difference)
+      const bagDiff = newBags - oldBags;
+      const currentBags = prev.bags || [];
+      const bagIndex = currentBags.findIndex(b => b.formulaId === oldEntry.formulaId);
+      let updatedBags = [...currentBags];
+
+      if (bagIndex > -1) {
+        // Ensure we don't go negative if not intended? Well, user can manually fix.
+        updatedBags[bagIndex] = {
+          ...updatedBags[bagIndex],
+          quantity: Math.max(0, updatedBags[bagIndex].quantity + bagDiff)
+        };
+      } else if (bagDiff > 0) {
+        // If for some reason bag entry didn't exist
+        updatedBags.push({
+          formulaId: oldEntry.formulaId,
+          quantity: bagDiff
+        });
+      }
+
       return {
         ...prev,
         ingredients: nextIngredients,
         productionHistory: updatedHistory,
+        bags: updatedBags,
       };
     });
   };
@@ -311,10 +355,26 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
       const updatedHistory = prev.productionHistory.filter(e => e.id !== id);
 
+      // Update Bags Inventory (Remove produced bags)
+      // If we delete the production record, we should theoretically remove those bags from stock.
+      // But what if they were already sold/cooked?
+      // Assumption: If deleting history, we are reverting the action. So we revert the bag add.
+      const currentBags = prev.bags || [];
+      const bagIndex = currentBags.findIndex(b => b.formulaId === entry.formulaId);
+      let updatedBags = [...currentBags];
+
+      if (bagIndex > -1) {
+        updatedBags[bagIndex] = {
+          ...updatedBags[bagIndex],
+          quantity: Math.max(0, updatedBags[bagIndex].quantity - entry.bagsProduced)
+        };
+      }
+
       return {
         ...prev,
         ingredients: nextIngredients,
         productionHistory: updatedHistory,
+        bags: updatedBags,
       };
     });
   };
@@ -325,6 +385,36 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
   const getIngredientById = (id: string) => {
     return state.ingredients.find(ing => ing.id === id);
+  };
+
+  const updateBagCount = (formulaId: string, newQuantity: number) => {
+    setState(prev => {
+      const currentBags = prev.bags || [];
+      const bagIndex = currentBags.findIndex(b => b.formulaId === formulaId);
+      let updatedBags = [...currentBags];
+
+      if (bagIndex > -1) {
+        updatedBags[bagIndex] = { ...updatedBags[bagIndex], quantity: newQuantity };
+      } else {
+        updatedBags.push({ formulaId, quantity: newQuantity });
+      }
+
+      return { ...prev, bags: updatedBags };
+    });
+  };
+
+  const cookBags = (formulaId: string, quantity: number) => {
+    setState(prev => {
+      const currentBags = prev.bags || [];
+      const bagIndex = currentBags.findIndex(b => b.formulaId === formulaId);
+      if (bagIndex === -1) return prev; // Cannot cook what doesn't exist
+
+      const updatedBags = [...currentBags];
+      const newQty = Math.max(0, updatedBags[bagIndex].quantity - quantity);
+      updatedBags[bagIndex] = { ...updatedBags[bagIndex], quantity: newQty };
+
+      return { ...prev, bags: updatedBags };
+    });
   };
 
   return (
@@ -342,6 +432,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         addProduction,
         updateProduction,
         deleteProduction,
+        // Bag Management
+        bags: state.bags || [],
+        updateBagCount,
+        cookBags,
         getIngredientById,
         resetInventory,
       }}
