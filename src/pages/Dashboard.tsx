@@ -1,15 +1,28 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { PageHeader } from '@/components/PageHeader';
 import { StatCard } from '@/components/StatCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useInventory } from '@/context/InventoryContext';
-import { Package, FlaskConical, Calendar, Plus, ArrowRight } from 'lucide-react';
+import { Package, FlaskConical, Calendar, Plus, ArrowRight, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 export default function Dashboard() {
   const { ingredients, formulas, productionHistory } = useInventory();
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const totalIngredients = ingredients.length;
   const totalFormulas = formulas.length;
@@ -23,18 +36,30 @@ export default function Dashboard() {
     })
     .reduce((sum, p) => sum + p.bagsProduced, 0);
 
+  const handleResetData = () => {
+    localStorage.removeItem('cheese-inventory');
+    window.location.reload();
+    toast.success('All data has been cleared');
+  };
+
   return (
     <Layout>
       <PageHeader 
         title="Dashboard" 
         description="Overview of your cheese factory inventory"
         action={
-          <Button asChild>
-            <Link to="/production">
-              <Plus className="w-4 h-4 mr-2" />
-              New Production
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowResetConfirm(true)}>
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reset Data
+            </Button>
+            <Button asChild>
+              <Link to="/production">
+                <Plus className="w-4 h-4 mr-2" />
+                New Production
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -139,6 +164,24 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Reset Confirmation */}
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset All Data</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all your ingredients, formulas, and production history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetData} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Reset Everything
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }
