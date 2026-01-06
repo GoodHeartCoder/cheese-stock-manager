@@ -3,9 +3,8 @@ import { Layout } from '@/components/Layout';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useInventory } from '@/context/InventoryContext';
-import { Calendar, ChevronLeft, ChevronRight, Package, Pencil, Trash2, X, Check } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { 
   format, 
   startOfMonth, 
@@ -25,29 +24,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { ProductionEntry } from '@/types/inventory';
 
 export default function History() {
-  const { productionHistory, updateProduction, deleteProduction } = useInventory();
+  const { productionHistory } = useInventory();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedProduction, setSelectedProduction] = useState<ProductionEntry | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editBags, setEditBags] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const productionByDate = useMemo(() => {
     const map = new Map<string, ProductionEntry[]>();
-    (productionHistory || []).forEach(entry => {
+    productionHistory.forEach(entry => {
       const dateKey = format(new Date(entry.date), 'yyyy-MM-dd');
       const existing = map.get(dateKey) || [];
       map.set(dateKey, [...existing, entry]);
@@ -76,47 +62,7 @@ export default function History() {
     return productionByDate.get(dateKey) || [];
   };
 
-  const handleStartEdit = () => {
-    if (selectedProduction) {
-      setEditBags(selectedProduction.bagsProduced.toString());
-      setIsEditing(true);
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditBags('');
-  };
-
-  const handleSaveEdit = () => {
-    if (selectedProduction && editBags) {
-      const newBags = parseInt(editBags, 10);
-      if (newBags > 0 && newBags !== selectedProduction.bagsProduced) {
-        updateProduction(selectedProduction.id, newBags);
-        // Update local state to reflect changes
-        setSelectedProduction(prev => prev ? {
-          ...prev,
-          bagsProduced: newBags,
-          ingredientsUsed: prev.ingredientsUsed.map(item => ({
-            ...item,
-            quantityUsed: item.quantityUsed * (newBags / prev.bagsProduced),
-          })),
-        } : null);
-      }
-      setIsEditing(false);
-      setEditBags('');
-    }
-  };
-
-  const handleDelete = () => {
-    if (selectedProduction) {
-      deleteProduction(selectedProduction.id);
-      setSelectedProduction(null);
-      setShowDeleteConfirm(false);
-    }
-  };
-
-  if ((productionHistory?.length || 0) === 0) {
+  if (productionHistory.length === 0) {
     return (
       <Layout>
         <PageHeader
@@ -223,13 +169,7 @@ export default function History() {
       </div>
 
       {/* Production Detail Dialog */}
-      <Dialog open={!!selectedProduction} onOpenChange={(open) => {
-        if (!open) {
-          setSelectedProduction(null);
-          setIsEditing(false);
-          setEditBags('');
-        }
-      }}>
+      <Dialog open={!!selectedProduction} onOpenChange={() => setSelectedProduction(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -240,56 +180,22 @@ export default function History() {
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-4 bg-accent/10 rounded-lg">
                 <Package className="w-8 h-8 text-accent" />
-                <div className="flex-1">
-                  {isEditing ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min="1"
-                        value={editBags}
-                        onChange={(e) => setEditBags(e.target.value)}
-                        className="w-24 text-lg font-bold"
-                        autoFocus
-                      />
-                      <span className="text-foreground font-bold">bags</span>
-                      <Button size="icon" variant="ghost" onClick={handleSaveEdit}>
-                        <Check className="w-4 h-4 text-green-500" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
-                        <X className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-2xl font-bold text-foreground">
-                        {selectedProduction.bagsProduced} bags
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedProduction.formulaName}
-                      </p>
-                    </>
-                  )}
+                <div>
+                  <p className="text-2xl font-bold text-foreground">
+                    {selectedProduction.bagsProduced} bags
+                  </p>
+                  <p className="text-sm text-muted-foreground">produced</p>
                 </div>
-                {!isEditing && (
-                  <div className="flex gap-1">
-                    <Button size="icon" variant="ghost" onClick={handleStartEdit}>
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => setShowDeleteConfirm(true)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                )}
               </div>
 
               <div>
                 <h3 className="font-medium text-foreground mb-2">Ingredients Used</h3>
                 <div className="space-y-2">
-                  {(selectedProduction.ingredientsUsed || []).map((item, idx) => (
+                  {selectedProduction.ingredientsUsed.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                       <span className="text-foreground">{item.ingredientName}</span>
                       <span className="text-muted-foreground">
-                        {item.quantityUsed.toFixed(2)} {item.unit}
+                        {item.quantityUsed} {item.unit}
                       </span>
                     </div>
                   ))}
@@ -299,24 +205,6 @@ export default function History() {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Production Entry</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will delete this production record and restore the ingredients back to your warehouse stock. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Layout>
   );
 }

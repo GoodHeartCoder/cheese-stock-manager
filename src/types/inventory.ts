@@ -11,8 +11,6 @@ export interface FormulaItem {
 }
 
 export interface Formula {
-  id: string;
-  name: string;
   items: FormulaItem[];
 }
 
@@ -20,8 +18,6 @@ export interface ProductionEntry {
   id: string;
   date: string; // ISO date string
   bagsProduced: number;
-  formulaId: string;
-  formulaName: string;
   ingredientsUsed: {
     ingredientId: string;
     ingredientName: string;
@@ -32,6 +28,6 @@ export interface ProductionEntry {
 
 export interface InventoryState {
   ingredients: Ingredient[];
-  formulas: Formula[];
+  formula: Formula;
   productionHistory: ProductionEntry[];
 }
