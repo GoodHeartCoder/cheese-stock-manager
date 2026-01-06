@@ -24,10 +24,10 @@ export default function Dashboard() {
   const { ingredients, formulas, productionHistory } = useInventory();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const totalIngredients = ingredients.length;
-  const totalFormulas = formulas.length;
-  const recentProductions = productionHistory.slice(0, 5);
-  const totalBagsThisMonth = productionHistory
+  const totalIngredients = ingredients?.length || 0;
+  const totalFormulas = formulas?.length || 0;
+  const recentProductions = productionHistory?.slice(0, 5) || [];
+  const totalBagsThisMonth = (productionHistory || [])
     .filter(p => {
       const productionDate = new Date(p.date);
       const now = new Date();
@@ -98,7 +98,7 @@ export default function Dashboard() {
             </Button>
           </div>
           
-          {ingredients.length === 0 ? (
+          {(ingredients?.length || 0) === 0 ? (
             <EmptyState
               icon={<Package className="w-6 h-6" />}
               title="No ingredients yet"
@@ -111,7 +111,7 @@ export default function Dashboard() {
             />
           ) : (
             <div className="space-y-3">
-              {ingredients.slice(0, 5).map(ing => (
+              {(ingredients || []).slice(0, 5).map(ing => (
                 <div key={ing.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                   <span className="font-medium text-foreground">{ing.name}</span>
                   <span className="text-muted-foreground">
