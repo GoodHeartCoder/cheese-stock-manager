@@ -29,7 +29,7 @@ import { ProductionEntry } from '@/types/inventory';
 export default function History() {
   const { productionHistory } = useInventory();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedProduction, setSelectedProduction] = useState<ProductionEntry | null>(null);
+  const [selectedEntries, setSelectedEntries] = useState<ProductionEntry[]>([]);
 
   const productionByDate = useMemo(() => {
     const map = new Map<string, ProductionEntry[]>();
@@ -134,7 +134,7 @@ export default function History() {
               return (
                 <button
                   key={day.toISOString()}
-                  onClick={() => entries.length > 0 && setSelectedProduction(entries[0])}
+                  onClick={() => entries.length > 0 && setSelectedEntries(entries)}
                   disabled={entries.length === 0}
                   className={`
                     aspect-square p-1 rounded-lg flex flex-col items-center justify-center text-sm transition-colors
@@ -169,40 +169,44 @@ export default function History() {
       </div>
 
       {/* Production Detail Dialog */}
-      <Dialog open={!!selectedProduction} onOpenChange={() => setSelectedProduction(null)}>
+      <Dialog open={selectedEntries.length > 0} onOpenChange={() => setSelectedEntries([])}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Production on {selectedProduction && format(new Date(selectedProduction.date), 'MMMM d, yyyy')}
+              Production on {selectedEntries[0] && format(new Date(selectedEntries[0].date), 'MMMM d, yyyy')}
             </DialogTitle>
           </DialogHeader>
-          {selectedProduction && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-accent/10 rounded-lg">
-                <Package className="w-8 h-8 text-accent" />
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {selectedProduction.bagsProduced} bags
-                  </p>
-                  <p className="text-sm text-muted-foreground">produced</p>
+          <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-6">
+            {selectedEntries.map(entry => (
+              <div key={entry.id} className="space-y-4 border-b border-border pb-4 last:border-0 last:pb-0">
+                <div className="flex items-center gap-3 p-4 bg-accent/10 rounded-lg">
+                  <Package className="w-8 h-8 text-accent" />
+                  <div>
+                    <p className="text-2xl font-bold text-foreground">
+                      {entry.bagsProduced} bags
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Produced at {format(new Date(entry.date), 'p')}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <h3 className="font-medium text-foreground mb-2">Ingredients Used</h3>
-                <div className="space-y-2">
-                  {selectedProduction.ingredientsUsed.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                      <span className="text-foreground">{item.ingredientName}</span>
-                      <span className="text-muted-foreground">
-                        {item.quantityUsed} {item.unit}
-                      </span>
-                    </div>
-                  ))}
+                <div>
+                  <h3 className="font-medium text-foreground mb-2">Ingredients Used</h3>
+                  <div className="space-y-2">
+                    {entry.ingredientsUsed.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                        <span className="text-foreground">{item.ingredientName}</span>
+                        <span className="text-muted-foreground">
+                          {item.quantityUsed} {item.unit}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </Layout>

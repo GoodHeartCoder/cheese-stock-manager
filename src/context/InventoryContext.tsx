@@ -1,4 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react';
+import { isSameDay } from 'date-fns';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Ingredient, Formula, ProductionEntry, InventoryState } from '@/types/inventory';
 
@@ -63,13 +64,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   const addProduction = (entry: Omit<ProductionEntry, 'id'>) => {
-    const newEntry: ProductionEntry = {
-      ...entry,
-      id: crypto.randomUUID(),
-    };
-
-    // Deduct ingredients from warehouse
     setState(prev => {
+      // Deduct ingredients from warehouse
       const updatedIngredients = prev.ingredients.map(ing => {
         const usedItem = entry.ingredientsUsed.find(u => u.ingredientId === ing.id);
         if (usedItem) {
@@ -78,10 +74,62 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return ing;
       });
 
+      // Aggregate production history
+      const today = new Date(entry.date);
+      const existingEntryIndex = prev.productionHistory.findIndex(histEntry =>
+        isSameDay(new Date(histEntry.date), today)
+      );
+
+      let updatedHistory: ProductionEntry[];
+
+      if (existingEntryIndex > -1) {
+        // Entry for today exists, update it
+        updatedHistory = [...prev.productionHistory];
+        const existingEntry = updatedHistory[existingEntryIndex];
+
+        const ingredientsMap = new Map<string, { quantityUsed: number; unit: string; ingredientName: string }>();
+
+        existingEntry.ingredientsUsed.forEach(item => {
+          ingredientsMap.set(item.ingredientId, { ...item });
+        });
+
+        entry.ingredientsUsed.forEach(item => {
+          const existing = ingredientsMap.get(item.ingredientId);
+          if (existing) {
+            existing.quantityUsed += item.quantityUsed;
+          } else {
+            ingredientsMap.set(item.ingredientId, { ...item });
+          }
+        });
+
+        const finalIngredients = Array.from(ingredientsMap.entries()).map(([ingredientId, data]) => ({
+            ingredientId,
+            ingredientName: data.ingredientName,
+            quantityUsed: data.quantityUsed,
+            unit: data.unit,
+        }));
+
+        const updatedEntry: ProductionEntry = {
+          ...existingEntry,
+          bagsProduced: existingEntry.bagsProduced + entry.bagsProduced,
+          ingredientsUsed: finalIngredients,
+          date: entry.date, // Update to the latest timestamp of the day
+        };
+
+        updatedHistory[existingEntryIndex] = updatedEntry;
+      } else {
+        // No entry for today, create a new one
+        const newEntry: ProductionEntry = {
+          ...entry,
+          id: crypto.randomUUID(),
+        };
+        updatedHistory = [newEntry, ...prev.productionHistory];
+      }
+
       return {
         ...prev,
         ingredients: updatedIngredients,
-        productionHistory: [newEntry, ...prev.productionHistory],
+        productionHistory: updatedHistory,
       };
     });
   };
