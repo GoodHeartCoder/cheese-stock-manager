@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import { InventoryState } from '@/types/inventory';
 
 // Since nodeIntegration is true, we can use node modules directly
@@ -5,7 +6,6 @@ import { InventoryState } from '@/types/inventory';
 // For Electron with nodeIntegration, require is usually on the window or global.
 const fs = window.require('fs');
 const path = window.require('path');
-const { ipcRenderer } = window.require('electron');
 
 const BACKUP_FOLDER_NAME = 'backups';
 const STORAGE_KEY = 'cheese-inventory';
@@ -25,13 +25,64 @@ class BackupManager {
     private async getBackupPath(): Promise<string> {
         if (this.cachedBackupDir) return this.cachedBackupDir;
 
-        const userDataPath = await ipcRenderer.invoke('get-app-path', 'userData');
+        const userDataPath = await window.electronAPI.getAppPath('userData');
         const backupDir = path.join(userDataPath, BACKUP_FOLDER_NAME);
         if (!fs.existsSync(backupDir)) {
             fs.mkdirSync(backupDir, { recursive: true });
         }
         this.cachedBackupDir = backupDir;
         return backupDir;
+    }
+
+    public async exportData(): Promise<boolean> {
+        try {
+            const data = await window.electronAPI.getInventory();
+            if (!data) throw new Error('No data found to export');
+
+            const result = await window.electronAPI.saveFile({
+                title: 'Export Inventory Data',
+                defaultPath: `cheese-factory-backup-${format(new Date(), 'yyyy-MM-dd')}.json`,
+                filters: [{ name: 'JSON Files', extensions: ['json'] }]
+            });
+
+            if (result.canceled || !result.filePath) return false;
+
+            fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf8');
+            return true;
+        } catch (error) {
+            console.error('Failed to export data:', error);
+            throw error;
+        }
+    }
+
+    public async importData(): Promise<boolean> {
+        try {
+            const result = await window.electronAPI.openFile({
+                title: 'Import Inventory Data',
+                filters: [{ name: 'JSON Files', extensions: ['json'] }],
+                properties: ['openFile']
+            });
+
+            if (result.canceled || result.filePaths.length === 0) return false;
+
+            const filePath = result.filePaths[0];
+            const content = fs.readFileSync(filePath, 'utf8');
+            const data = JSON.parse(content);
+
+            // Validation: check if it looks like our data
+            if (!data.ingredients || !data.formulas) {
+                throw new Error('Invalid backup file format');
+            }
+
+            // Safety backup before overwrite
+            await this.saveBackup(false);
+
+            await window.electronAPI.saveInventory(data);
+            return true;
+        } catch (error) {
+            console.error('Failed to import data:', error);
+            throw error;
+        }
     }
 
     public async saveBackup(isAutomatic: boolean = false): Promise<string> {

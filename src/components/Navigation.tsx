@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink as RouterNavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { Home, Warehouse, FlaskConical, Plus, Calendar, RotateCcw, FileText, ShoppingBag } from 'lucide-react';
+import { Home, Warehouse, FlaskConical, Plus, Calendar, RotateCcw, FileText, ShoppingBag, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -24,7 +24,7 @@ const navItems = [
   { to: '/production', label: 'Production', icon: Plus },
   { to: '/bags', label: 'Bags', icon: ShoppingBag },
   { to: '/history', label: 'History', icon: Calendar },
-  { to: '/reports', label: 'Reports', icon: FileText },
+  { to: '/reports', label: 'Data Manager', icon: Database },
 ];
 
 export function Navigation() {

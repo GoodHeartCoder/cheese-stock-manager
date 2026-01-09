@@ -7,6 +7,9 @@ declare global {
     electronAPI: {
       getInventory: () => Promise<InventoryState | null>;
       saveInventory: (data: InventoryState) => Promise<boolean>;
+      getAppPath: (name: string) => Promise<string>;
+      openFile: (options: any) => Promise<{ canceled: boolean; filePaths: string[] }>;
+      saveFile: (options: any) => Promise<{ canceled: boolean; filePath?: string }>;
     }
   }
 }

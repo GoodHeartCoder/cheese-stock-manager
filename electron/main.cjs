@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 
 let Store;
@@ -50,6 +50,16 @@ ipcMain.handle('save-inventory', async (event, data) => {
 
 ipcMain.handle('get-app-path', async (event, name) => {
     return app.getPath(name);
+});
+
+ipcMain.handle('dialog:openFile', async (event, options) => {
+    const result = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow(), options);
+    return result;
+});
+
+ipcMain.handle('dialog:saveFile', async (event, options) => {
+    const result = await dialog.showSaveDialog(BrowserWindow.getFocusedWindow(), options);
+    return result;
 });
 
 app.whenReady().then(async () => {
