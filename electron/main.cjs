@@ -1,5 +1,14 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+
+let Store;
+
+// Initialize Store asynchronously since electron-store is ESM
+async function initStore() {
+    const { default: ElectronStore } = await import('electron-store');
+    Store = new ElectronStore();
+    console.log("Store initialized at:", Store.path);
+}
 
 console.log("Electron main process started!");
 
@@ -27,7 +36,24 @@ function createWindow() {
     }
 }
 
-app.whenReady().then(() => {
+// IPC Handlers for storage
+ipcMain.handle('get-inventory', async () => {
+    if (!Store) await initStore();
+    return Store.get('inventory');
+});
+
+ipcMain.handle('save-inventory', async (event, data) => {
+    if (!Store) await initStore();
+    Store.set('inventory', data);
+    return true;
+});
+
+ipcMain.handle('get-app-path', async (event, name) => {
+    return app.getPath(name);
+});
+
+app.whenReady().then(async () => {
+    await initStore();
     createWindow();
 
     app.on('activate', () => {

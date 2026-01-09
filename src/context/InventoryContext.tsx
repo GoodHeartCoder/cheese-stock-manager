@@ -1,7 +1,15 @@
-import React, { createContext, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { isSameDay } from 'date-fns';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Ingredient, Formula, ProductionEntry, InventoryState, Bag, CookingEntry } from '@/types/inventory';
+
+declare global {
+  interface Window {
+    electronAPI: {
+      getInventory: () => Promise<InventoryState | null>;
+      saveInventory: (data: InventoryState) => Promise<boolean>;
+    }
+  }
+}
 
 interface InventoryContextType {
   ingredients: Ingredient[];
@@ -42,7 +50,39 @@ const round = (num: number, decimals: number = 4): number => {
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useLocalStorage<InventoryState>('cheese-inventory', defaultState);
+  const [state, setState] = useState<InventoryState>(defaultState);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from File System on startup
+  useEffect(() => {
+    const loadData = async () => {
+      if (!window.electronAPI) {
+        console.warn("electronAPI not found. Running in browser mode?");
+        setIsLoaded(true);
+        return;
+      }
+      try {
+        const savedData = await window.electronAPI.getInventory();
+        if (savedData) {
+          setState(savedData);
+        }
+      } catch (error) {
+        console.error("Failed to load inventory from file:", error);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Save to File System on every change
+  useEffect(() => {
+    if (isLoaded && window.electronAPI) {
+      window.electronAPI.saveInventory(state).catch(err => {
+        console.error("Failed to save inventory to file:", err);
+      });
+    }
+  }, [state, isLoaded]);
 
 
   const addIngredient = (ingredient: Omit<Ingredient, 'id'>) => {

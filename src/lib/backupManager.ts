@@ -36,8 +36,8 @@ class BackupManager {
 
     public async saveBackup(isAutomatic: boolean = false): Promise<string> {
         try {
-            const data = localStorage.getItem(STORAGE_KEY);
-            if (!data) throw new Error('No data found in localStorage to backup');
+            const data = await window.electronAPI.getInventory();
+            if (!data) throw new Error('No data found to backup');
 
             const timestamp = Date.now();
             const dateStr = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
@@ -46,10 +46,15 @@ class BackupManager {
             const backupDir = await this.getBackupPath();
             const filePath = path.join(backupDir, fileName);
 
-            fs.writeFileSync(filePath, data, 'utf8');
+            fs.writeFileSync(filePath, JSON.stringify(data), 'utf8');
 
             if (isAutomatic) {
-                localStorage.setItem(LAST_BACKUP_KEY, timestamp.toString());
+                // Update last backup timestamp in the store as well
+                const currentState = await window.electronAPI.getInventory() || ({} as any);
+                await window.electronAPI.saveInventory({
+                    ...currentState,
+                    lastBackupTimestamp: timestamp
+                });
             }
 
             return filePath;
@@ -91,7 +96,8 @@ class BackupManager {
 
             // 2. Read and restore
             const content = fs.readFileSync(filePath, 'utf8');
-            localStorage.setItem(STORAGE_KEY, content);
+            const data = JSON.parse(content);
+            await window.electronAPI.saveInventory(data);
 
             // 3. Inform the app (handled by reload usually)
             window.location.reload();
@@ -113,7 +119,8 @@ class BackupManager {
     }
 
     public async checkAndTriggerAutoBackup(): Promise<void> {
-        const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
+        const state = await window.electronAPI.getInventory();
+        const lastBackup = (state as any)?.lastBackupTimestamp;
         const now = Date.now();
         const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
