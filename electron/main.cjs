@@ -7,7 +7,8 @@ let Store;
 async function initStore() {
     const { default: ElectronStore } = await import('electron-store');
     Store = new ElectronStore();
-    console.log("Store initialized at:", Store.path);
+    Store.clear(); // Temporary wipe for fresh start
+    console.log("Store initialized and CLEARED at:", Store.path);
 }
 
 console.log("Electron main process started!");

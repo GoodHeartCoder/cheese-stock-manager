@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { NavLink as RouterNavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { Home, Warehouse, FlaskConical, Plus, Calendar, RotateCcw, FileText, ShoppingBag, Database } from 'lucide-react';
+import { Home, Warehouse, FlaskConical, Plus, Calendar, FileText, ShoppingBag, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -28,17 +27,6 @@ const navItems = [
 ];
 
 export function Navigation() {
-  const { resetInventory } = useInventory();
-  const [isResetOpen, setIsResetOpen] = useState(false);
-
-  const handleReset = () => {
-    resetInventory();
-    setIsResetOpen(false);
-    toast.success('All data has been reset');
-    // Force reload to ensure all states are clean if needed, or rely on context
-    window.location.reload();
-  };
-
   return (
     <nav className="bg-card border-b border-border sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -69,39 +57,10 @@ export function Navigation() {
               </RouterNavLink>
             ))}
 
-            <div className="w-px h-6 bg-border mx-2" />
-
             <ModeToggle />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setIsResetOpen(true)}
-              title="Reset All Data"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </Button>
           </div>
         </div>
       </div>
-
-      <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete all your ingredients, formulas, and production history from this device.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Reset Everything
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </nav>
   );
 }
