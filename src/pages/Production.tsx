@@ -14,9 +14,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useInventory } from '@/context/InventoryContext';
-import { FlaskConical, Package, AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { Calendar as CalendarIcon, FlaskConical, Package, AlertCircle, CheckCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 export default function Production() {
   const navigate = useNavigate();
@@ -25,6 +32,7 @@ export default function Production() {
   const [selectedFormulaId, setSelectedFormulaId] = useState<string>('');
   const [bags, setBags] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [date, setDate] = useState<Date>(new Date());
 
   // Auto-select if only one formula exists
   useEffect(() => {
@@ -48,7 +56,7 @@ export default function Production() {
       return {
         ingredientId: item.ingredientId,
         ingredientName: ingredient?.name || 'Unknown',
-        unit: ingredient?.unit || '',
+        unit: 'kg',
         quantityPerBag: item.quantityPerBag,
         quantityNeeded: needed,
         available,
@@ -66,7 +74,7 @@ export default function Production() {
     }
 
     addProduction({
-      date: new Date().toISOString(),
+      date: date.toISOString(),
       bagsProduced: bagsNumber,
       formulaId: activeFormula.id,
       formulaName: activeFormula.name,
@@ -74,7 +82,7 @@ export default function Production() {
         ingredientId: u.ingredientId,
         ingredientName: u.ingredientName,
         quantityUsed: u.quantityNeeded,
-        unit: u.unit,
+        unit: 'kg',
       })),
     });
 
@@ -133,49 +141,83 @@ export default function Production() {
 
       <div className="max-w-2xl">
         {/* Input Section */}
-        <div className="bg-card rounded-xl border border-border p-6 mb-6">
-          <div className="space-y-6">
+        <div className="bg-card rounded-xl border border-border p-6 mb-6 shadow-sm">
+          <div className="space-y-8">
 
             {/* Formula Select */}
-            <div className="space-y-2">
-              <Label>Select Formula</Label>
+            <div className="space-y-3">
+              <Label className="text-base font-semibold text-primary">1. Choose Cheese Type</Label>
               <Select value={selectedFormulaId} onValueChange={setSelectedFormulaId}>
-                <SelectTrigger>
+                <SelectTrigger className="h-12 text-base">
                   <SelectValue placeholder="Choose a cheese type" />
                 </SelectTrigger>
                 <SelectContent>
                   {formulas.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    <SelectItem key={f.id} value={f.id} className="text-base">{f.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="bags" className="text-base font-medium">
-                How many bags did you produce?
-              </Label>
-              <Input
-                id="bags"
-                type="number"
-                min="1"
-                placeholder="Enter number of bags"
-                value={bags}
-                onChange={e => {
-                  const val = e.target.value;
-                  // Prevent negative typing if possible, or just handle in validation
-                  if (val === '' || parseInt(val) > 0) {
-                    setBags(val);
-                    setShowPreview(true);
-                  }
-                }}
-                disabled={!selectedFormulaId}
-                className="text-lg h-12"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-border/50">
+              {/* Quantity Input */}
+              <div className="space-y-3">
+                <Label htmlFor="bags" className="text-base font-semibold text-primary">
+                  2. Quantity
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="bags"
+                    type="number"
+                    min="1"
+                    placeholder="0"
+                    value={bags}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val === '' || parseInt(val) > 0) {
+                        setBags(val);
+                        setShowPreview(true);
+                      }
+                    }}
+                    disabled={!selectedFormulaId}
+                    className="text-lg h-12 pr-16 font-medium"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 bg-secondary rounded text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Bags
+                  </div>
+                </div>
+              </div>
+
+              {/* Date Input */}
+              <div className="space-y-3">
+                <Label className="text-base font-semibold text-primary flex items-center gap-2">
+                  3. Production Date
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-medium h-12 transition-all border-2",
+                        !date && "text-muted-foreground",
+                        date && "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:border-primary/50"
+                      )}
+                    >
+                      <CalendarIcon className="mr-3 h-5 w-5 opacity-70" />
+                      {date ? format(date, "PPP") : <span className="text-muted-foreground">Select date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={(d) => d && setDate(d)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Today: {format(new Date(), 'EEEE, MMMM d, yyyy')}
-            </p>
           </div>
         </div>
 
@@ -199,13 +241,13 @@ export default function Production() {
                     <div>
                       <p className="font-medium text-foreground">{item.ingredientName}</p>
                       <p className="text-sm text-muted-foreground">
-                        Available: {item.available} {item.unit}
+                        Available: {item.available} kg
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className={`font-medium ${item.hasEnough ? 'text-foreground' : 'text-destructive'}`}>
-                      {item.quantityNeeded} {item.unit}
+                      {item.quantityNeeded} kg
                     </p>
                     {!item.hasEnough && (
                       <p className="text-sm text-destructive">

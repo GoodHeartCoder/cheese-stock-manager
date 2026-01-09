@@ -38,7 +38,7 @@ export default function Reports() {
 
         const inventoryData = ingredients.map(ing => [
             ing.name,
-            `${ing.quantity} ${ing.unit}`
+            `${ing.quantity} kg`
         ]);
 
         autoTable(doc, {
@@ -61,7 +61,7 @@ export default function Reports() {
 
         const historyData = filteredHistory.map(entry => {
             const ingredientsList = entry.ingredientsUsed.map(i =>
-                `${i.ingredientName}: ${i.quantityUsed.toFixed(1)}${i.unit}`
+                `${i.ingredientName}: ${i.quantityUsed.toFixed(1)}kg`
             ).join(', ');
 
             return [

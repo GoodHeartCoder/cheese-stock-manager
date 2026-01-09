@@ -36,6 +36,8 @@ export default function FormulaPage() {
   // Editing State
   const [selectedIngredient, setSelectedIngredient] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [editFormulaName, setEditFormulaName] = useState('');
 
   const activeFormula = selectedFormulaId ? formulas.find(f => f.id === selectedFormulaId) : null;
 
@@ -48,7 +50,15 @@ export default function FormulaPage() {
       toast.error('Please enter a formula name');
       return;
     }
-    addFormula(newFormulaName, []);
+    // Check for duplicate names (case-insensitive)
+    const isDuplicate = formulas.some(
+      f => f.name.toLowerCase() === newFormulaName.trim().toLowerCase()
+    );
+    if (isDuplicate) {
+      toast.error('A formula with this name already exists');
+      return;
+    }
+    addFormula(newFormulaName.trim(), []);
     setNewFormulaName('');
     setIsCreateOpen(false);
     toast.success('Formula created');
@@ -61,6 +71,29 @@ export default function FormulaPage() {
       if (selectedFormulaId === id) setSelectedFormulaId(null);
       toast.success('Formula deleted');
     }
+  };
+
+  const handleRenameFormula = () => {
+    if (!activeFormula || !editFormulaName.trim()) {
+      toast.error('Please enter a formula name');
+      return;
+    }
+
+    const trimmedName = editFormulaName.trim();
+
+    // Check for duplicate names (excluding current formula)
+    const isDuplicate = formulas.some(
+      f => f.id !== activeFormula.id && f.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      toast.error('A formula with this name already exists');
+      return;
+    }
+
+    updateFormula(activeFormula.id, { name: trimmedName });
+    setIsRenameOpen(false);
+    toast.success('Formula renamed');
   };
 
   const handleAddToFormula = () => {
@@ -117,6 +150,14 @@ export default function FormulaPage() {
     }
 
     if (isNaN(parsed) || parsed < 0) return;
+
+    // If user enters 0, we'll allow it but maybe the UI should highlight it.
+    // For now, we'll follow the rule "Block 0kg ingredients" by preventing 0 in the context update
+    // unless the user specifically wants to clear it.
+    if (parsed === 0 && newQuantity !== '') {
+      toast.error('Quantity must be greater than 0. Use the delete button to remove it.');
+      return;
+    }
 
     updateFormula(activeFormula.id, {
       items: activeFormula.items.map(item =>
@@ -234,8 +275,21 @@ export default function FormulaPage() {
         <Button variant="ghost" size="icon" onClick={() => setSelectedFormulaId(null)}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{activeFormula.name}</h1>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">{activeFormula.name}</h1>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground"
+              onClick={() => {
+                setEditFormulaName(activeFormula.name);
+                setIsRenameOpen(true);
+              }}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+          </div>
           <p className="text-muted-foreground">Edit formula ingredients</p>
         </div>
       </div>
@@ -254,7 +308,7 @@ export default function FormulaPage() {
                 <SelectContent>
                   {availableIngredients.map(ing => (
                     <SelectItem key={ing.id} value={ing.id}>
-                      {ing.name} ({ing.unit})
+                      {ing.name} (kg)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -299,7 +353,7 @@ export default function FormulaPage() {
                   <div>
                     <p className="font-medium text-foreground">{ingredient.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      Available in Stock: {ingredient.quantity} {ingredient.unit}
+                      Available in Stock: {ingredient.quantity} kg
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -310,7 +364,7 @@ export default function FormulaPage() {
                         value={item.quantityPerBag}
                         onChange={e => handleUpdateQuantity(item.ingredientId, e.target.value)}
                       />
-                      <span className="text-muted-foreground">{ingredient.unit}</span>
+                      <span className="text-muted-foreground">kg</span>
                     </div>
                     <Button
                       variant="ghost"
@@ -327,6 +381,26 @@ export default function FormulaPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Formula</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <Label>New Formula Name</Label>
+            <Input
+              value={editFormulaName}
+              onChange={(e) => setEditFormulaName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleRenameFormula()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>Cancel</Button>
+            <Button onClick={handleRenameFormula}>Rename</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

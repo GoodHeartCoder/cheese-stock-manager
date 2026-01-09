@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useInventory } from '@/context/InventoryContext';
 import { toast } from 'sonner';
+import { ModeToggle } from '@/components/ModeToggle';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: Home },
@@ -69,6 +70,8 @@ export function Navigation() {
             ))}
 
             <div className="w-px h-6 bg-border mx-2" />
+
+            <ModeToggle />
 
             <Button
               variant="ghost"

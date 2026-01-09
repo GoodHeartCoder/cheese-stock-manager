@@ -24,43 +24,49 @@ import {
 } from '@/components/ui/table';
 import { useInventory } from '@/context/InventoryContext';
 import { Ingredient } from '@/types/inventory';
-import { Package, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Package, Plus, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Warehouse() {
   const { ingredients, addIngredient, updateIngredient, deleteIngredient } = useInventory();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
-  const [formData, setFormData] = useState({ name: '', quantity: '', unit: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    quantity: '',
+    minStock: '0'
+  });
 
   const resetForm = () => {
-    setFormData({ name: '', quantity: '', unit: '' });
+    setFormData({ name: '', quantity: '', minStock: '0' });
   };
 
   const handleAdd = () => {
-    if (!formData.name || !formData.quantity || !formData.unit) {
+    if (!formData.name || !formData.quantity) {
       toast.error('Please fill in all fields');
       return;
     }
     addIngredient({
       name: formData.name,
-      quantity: parseFloat(formData.quantity),
-      unit: formData.unit,
+      quantity: parseFloat(formData.quantity) || 0,
+      unit: 'kg',
+      minStock: parseFloat(formData.minStock) || 0
     });
     toast.success('Ingredient added');
-    resetForm();
+    setFormData({ name: '', quantity: '', minStock: '0' });
     setIsAddOpen(false);
   };
 
   const handleEdit = () => {
-    if (!editingIngredient || !formData.name || !formData.quantity || !formData.unit) {
+    if (!editingIngredient || !formData.name) {
       toast.error('Please fill in all fields');
       return;
     }
     updateIngredient(editingIngredient.id, {
       name: formData.name,
-      quantity: parseFloat(formData.quantity),
-      unit: formData.unit,
+      quantity: parseFloat(formData.quantity) || 0,
+      unit: 'kg',
+      minStock: parseFloat(formData.minStock) || 0
     });
     toast.success('Ingredient updated');
     resetForm();
@@ -72,13 +78,13 @@ export default function Warehouse() {
     toast.success(`${name} deleted`);
   };
 
-  const openEdit = (ingredient: Ingredient) => {
+  const openEdit = (ing: Ingredient) => {
+    setEditingIngredient(ing);
     setFormData({
-      name: ingredient.name,
-      quantity: ingredient.quantity.toString(),
-      unit: ingredient.unit,
+      name: ing.name,
+      quantity: ing.quantity.toString(),
+      minStock: (ing.minStock ?? 0).toString()
     });
-    setEditingIngredient(ingredient);
   };
 
   return (
@@ -111,28 +117,32 @@ export default function Warehouse() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
+                    <Label htmlFor="quantity">Quantity (kg)</Label>
                     <Input
                       id="quantity"
                       type="number"
-                      placeholder="0"
+                      placeholder="0.00"
                       value={formData.quantity}
                       onChange={e => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="unit">Unit</Label>
+                    <Label htmlFor="minStock">Low Stock Alert (kg)</Label>
                     <Input
-                      id="unit"
-                      placeholder="e.g., kg"
-                      value={formData.unit}
-                      onChange={e => setFormData(prev => ({ ...prev, unit: e.target.value }))}
+                      id="minStock"
+                      type="number"
+                      placeholder="0.00"
+                      value={formData.minStock}
+                      onChange={e => setFormData(prev => ({ ...prev, minStock: e.target.value }))}
                     />
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => {
+                  setIsAddOpen(false);
+                  setFormData({ name: '', quantity: '', minStock: '0' });
+                }}>Cancel</Button>
                 <Button onClick={handleAdd}>Add Ingredient</Button>
               </DialogFooter>
             </DialogContent>
@@ -158,25 +168,34 @@ export default function Warehouse() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Unit</TableHead>
+                <TableHead>Quantity (kg)</TableHead>
                 <TableHead className="w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {ingredients.map(ing => (
                 <TableRow key={ing.id}>
-                  <TableCell className="font-medium">{ing.name}</TableCell>
-                  <TableCell>{ing.quantity}</TableCell>
-                  <TableCell>{ing.unit}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {ing.quantity <= (ing.minStock ?? 0) && (
+                        <AlertTriangle className="w-4 h-4 text-destructive" />
+                      )}
+                      <span className={ing.quantity <= (ing.minStock ?? 0) ? "text-destructive font-bold" : ""}>
+                        {ing.name}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className={ing.quantity <= (ing.minStock ?? 0) ? "text-destructive font-bold" : ""}>
+                    {ing.quantity} kg
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(ing)}>
                         <Pencil className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleDelete(ing.id, ing.name)}
                         className="text-destructive hover:text-destructive"
                       >
@@ -209,20 +228,23 @@ export default function Warehouse() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-quantity">Quantity</Label>
+                <Label htmlFor="edit-quantity">Quantity (kg)</Label>
                 <Input
                   id="edit-quantity"
                   type="number"
+                  placeholder="0.00"
                   value={formData.quantity}
                   onChange={e => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-unit">Unit</Label>
+                <Label htmlFor="edit-minStock">Low Stock Alert (kg)</Label>
                 <Input
-                  id="edit-unit"
-                  value={formData.unit}
-                  onChange={e => setFormData(prev => ({ ...prev, unit: e.target.value }))}
+                  id="edit-minStock"
+                  type="number"
+                  placeholder="0.00"
+                  value={formData.minStock}
+                  onChange={e => setFormData(prev => ({ ...prev, minStock: e.target.value }))}
                 />
               </div>
             </div>

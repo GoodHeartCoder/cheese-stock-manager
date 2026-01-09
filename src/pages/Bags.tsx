@@ -6,7 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShoppingBag, Flame, FlaskConical } from 'lucide-react';
+import { ShoppingBag, Flame, FlaskConical, History, Edit2, Trash2, Save, X } from 'lucide-react';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import { format } from 'date-fns';
 import {
     Dialog,
     DialogContent,
@@ -19,11 +28,15 @@ import { useInventory } from '@/context/InventoryContext';
 import { toast } from 'sonner';
 
 export default function Bags() {
-    const { formulas, bags, cookBags } = useInventory();
+    const { formulas, bags, cookingHistory, cookBags, updateCookingEntry, deleteCookingEntry } = useInventory();
 
     const [selectedFormula, setSelectedFormula] = useState<{ id: string, name: string } | null>(null);
     const [isCooking, setIsCooking] = useState(false);
     const [inputValue, setInputValue] = useState('');
+
+    // State for editing history
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState('');
 
     const handleCook = (formula: { id: string, name: string }) => {
         setIsCooking(true);
@@ -51,6 +64,29 @@ export default function Bags() {
         setInputValue('');
         setIsCooking(false);
         setSelectedFormula(null);
+    };
+
+    const handleStartEdit = (entry: { id: string, quantityCooked: number }) => {
+        setEditingId(entry.id);
+        setEditValue(entry.quantityCooked.toString());
+    };
+
+    const handleSaveEdit = (id: string) => {
+        const value = parseInt(editValue);
+        if (isNaN(value) || value <= 0) {
+            toast.error('Please enter a valid positive number');
+            return;
+        }
+        updateCookingEntry(id, value);
+        setEditingId(null);
+        toast.success('Cooking entry updated');
+    };
+
+    const handleDelete = (id: string) => {
+        if (confirm('Are you sure you want to delete this cooking record? This will return the bags to your inventory.')) {
+            deleteCookingEntry(id);
+            toast.success('Cooking record deleted');
+        }
     };
 
     if (formulas.length === 0) {
@@ -113,6 +149,98 @@ export default function Bags() {
                     );
                 })}
             </div>
+
+            {cookingHistory.length > 0 && (
+                <div className="mt-12 space-y-4">
+                    <div className="flex items-center gap-2">
+                        <History className="w-5 h-5 text-muted-foreground" />
+                        <h2 className="text-xl font-semibold">Recent Cooking History</h2>
+                    </div>
+
+                    <Card>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date & Time</TableHead>
+                                    <TableHead>Formula</TableHead>
+                                    <TableHead>Quantity Cooked</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {cookingHistory.slice(0, 10).map((entry) => (
+                                    <TableRow key={entry.id}>
+                                        <TableCell className="text-muted-foreground">
+                                            {format(new Date(entry.date), 'MMM d, HH:mm')}
+                                        </TableCell>
+                                        <TableCell className="font-medium">
+                                            {entry.formulaName}
+                                        </TableCell>
+                                        <TableCell>
+                                            {editingId === entry.id ? (
+                                                <div className="flex items-center gap-2 max-w-[120px]">
+                                                    <Input
+                                                        type="number"
+                                                        value={editValue}
+                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                        className="h-8"
+                                                    />
+                                                    <span className="text-sm text-muted-foreground">bags</span>
+                                                </div>
+                                            ) : (
+                                                <span>{entry.quantityCooked} bags</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                                {editingId === entry.id ? (
+                                                    <>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 text-green-600"
+                                                            onClick={() => handleSaveEdit(entry.id)}
+                                                        >
+                                                            <Save className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 text-muted-foreground"
+                                                            onClick={() => setEditingId(null)}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8"
+                                                            onClick={() => handleStartEdit(entry)}
+                                                        >
+                                                            <Edit2 className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 text-destructive"
+                                                            onClick={() => handleDelete(entry.id)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </Card>
+                </div>
+            )}
 
             <Dialog open={isCooking} onOpenChange={(open) => !open && setIsCooking(false)}>
                 <DialogContent>

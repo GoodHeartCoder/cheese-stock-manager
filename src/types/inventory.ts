@@ -3,6 +3,7 @@ export interface Ingredient {
   name: string;
   quantity: number;
   unit: string;
+  minStock: number;
 }
 
 export interface FormulaItem {
@@ -35,9 +36,18 @@ export interface Bag {
   quantity: number;
 }
 
+export interface CookingEntry {
+  id: string;
+  formulaId: string;
+  formulaName: string;
+  quantityCooked: number;
+  date: string; // ISO date string
+}
+
 export interface InventoryState {
   ingredients: Ingredient[];
   formulas: Formula[];
   productionHistory: ProductionEntry[];
   bags: Bag[];
+  cookingHistory: CookingEntry[];
 }

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import { isSameDay } from 'date-fns';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Ingredient, Formula, ProductionEntry, InventoryState, Bag } from '@/types/inventory';
+import { Ingredient, Formula, ProductionEntry, InventoryState, Bag, CookingEntry } from '@/types/inventory';
 
 interface InventoryContextType {
   ingredients: Ingredient[];
@@ -20,8 +20,11 @@ interface InventoryContextType {
   resetInventory: () => void;
   // Bag Management
   bags: Bag[];
+  cookingHistory: CookingEntry[];
   updateBagCount: (formulaId: string, newQuantity: number) => void;
   cookBags: (formulaId: string, quantity: number) => void;
+  updateCookingEntry: (id: string, newQuantity: number) => void;
+  deleteCookingEntry: (id: string) => void;
 }
 
 const defaultState: InventoryState = {
@@ -29,6 +32,11 @@ const defaultState: InventoryState = {
   formulas: [],
   productionHistory: [],
   bags: [],
+  cookingHistory: [],
+};
+
+const round = (num: number, decimals: number = 4): number => {
+  return Number(Math.round(Number(num + 'e' + decimals)) + 'e-' + decimals);
 };
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -36,7 +44,6 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useLocalStorage<InventoryState>('cheese-inventory', defaultState);
 
-  // Migration Logic Removed as per user request to avoid auto-creating "Default Formula"
 
   const addIngredient = (ingredient: Omit<Ingredient, 'id'>) => {
     const newIngredient: Ingredient = {
@@ -53,7 +60,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     setState(prev => ({
       ...prev,
       ingredients: prev.ingredients.map(ing =>
-        ing.id === id ? { ...ing, ...updates } : ing
+        ing.id === id ? {
+          ...ing,
+          ...updates,
+          quantity: updates.quantity !== undefined ? round(updates.quantity) : ing.quantity,
+          minStock: updates.minStock !== undefined ? round(updates.minStock) : ing.minStock
+        } : ing
       ),
     }));
   };
@@ -94,7 +106,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const deleteFormula = (id: string) => {
     setState(prev => ({
       ...prev,
-      formulas: (prev.formulas || []).filter(f => f.id !== id)
+      formulas: (prev.formulas || []).filter(f => f.id !== id),
+      bags: (prev.bags || []).filter(b => b.formulaId !== id)
     }));
   }
 
@@ -119,7 +132,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       const updatedIngredients = prev.ingredients.map(ing => {
         const usedItem = entry.ingredientsUsed.find(u => u.ingredientId === ing.id);
         if (usedItem) {
-          return { ...ing, quantity: Math.max(0, ing.quantity - usedItem.quantityUsed) };
+          return { ...ing, quantity: Math.max(0, round(ing.quantity - usedItem.quantityUsed)) };
         }
         return ing;
       });
@@ -146,7 +159,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         entry.ingredientsUsed.forEach(item => {
           const existing = ingredientsMap.get(item.ingredientId);
           if (existing) {
-            existing.quantityUsed += item.quantityUsed;
+            existing.quantityUsed = round(existing.quantityUsed + item.quantityUsed);
           } else {
             ingredientsMap.set(item.ingredientId, { ...item });
           }
@@ -155,8 +168,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const finalIngredients = Array.from(ingredientsMap.entries()).map(([ingredientId, data]) => ({
           ingredientId,
           ingredientName: data.ingredientName,
-          quantityUsed: data.quantityUsed,
-          unit: data.unit,
+          quantityUsed: round(data.quantityUsed),
+          unit: data.unit, // FIXED: Use existing unit
         }));
 
         const updatedEntry: ProductionEntry = {
@@ -184,12 +197,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       if (bagIndex > -1) {
         updatedBags[bagIndex] = {
           ...updatedBags[bagIndex],
-          quantity: updatedBags[bagIndex].quantity + entry.bagsProduced
+          quantity: round(updatedBags[bagIndex].quantity + entry.bagsProduced)
         };
       } else {
         updatedBags.push({
           formulaId: entry.formulaId,
-          quantity: entry.bagsProduced
+          quantity: round(entry.bagsProduced)
         });
       }
 
@@ -266,20 +279,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         if (existingIndex > -1) {
           // Ingredient exists, update quantity
           const current = nextIngredients[existingIndex];
-          const newQty = Math.max(0, current.quantity - delta);
+          const newQty = Math.max(0, round(current.quantity - delta));
           nextIngredients[existingIndex] = { ...current, quantity: newQty };
-        } else if (delta < 0) {
-          // Ingredient deleted but we are returning stock. RESTORE IT.
-          // We need metadata (name, unit). We have it in oldEntry.ingredientsUsed
-          const meta = oldEntry.ingredientsUsed.find(u => u.ingredientId === ingId);
-          if (meta) {
-            nextIngredients.push({
-              id: ingId,
-              name: meta.ingredientName,
-              quantity: Math.abs(delta), // Returning this amount
-              unit: meta.unit
-            });
-          }
         }
       }
 
@@ -291,7 +292,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           const perBag = item.quantityUsed / oldBags;
           return {
             ...item,
-            quantityUsed: perBag * newBags,
+            quantityUsed: round(perBag * newBags),
           };
         }),
       };
@@ -309,13 +310,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         // Ensure we don't go negative if not intended? Well, user can manually fix.
         updatedBags[bagIndex] = {
           ...updatedBags[bagIndex],
-          quantity: Math.max(0, updatedBags[bagIndex].quantity + bagDiff)
+          quantity: Math.max(0, round(updatedBags[bagIndex].quantity + bagDiff))
         };
       } else if (bagDiff > 0) {
         // If for some reason bag entry didn't exist
         updatedBags.push({
           formulaId: oldEntry.formulaId,
-          quantity: bagDiff
+          quantity: round(bagDiff)
         });
       }
 
@@ -341,15 +342,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const existingIndex = nextIngredients.findIndex(i => i.id === item.ingredientId);
         if (existingIndex > -1) {
           const current = nextIngredients[existingIndex];
-          nextIngredients[existingIndex] = { ...current, quantity: current.quantity + item.quantityUsed };
+          nextIngredients[existingIndex] = { ...current, quantity: round(current.quantity + item.quantityUsed) };
         } else {
-          // Ghost Ingredient Restoration
-          nextIngredients.push({
-            id: item.ingredientId,
-            name: item.ingredientName,
-            quantity: item.quantityUsed,
-            unit: item.unit
-          });
+          console.warn(`Ingredient ${item.ingredientName} (${item.ingredientId}) not found in warehouse during deletion. Stock cannot be restored.`);
         }
       });
 
@@ -366,7 +361,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       if (bagIndex > -1) {
         updatedBags[bagIndex] = {
           ...updatedBags[bagIndex],
-          quantity: Math.max(0, updatedBags[bagIndex].quantity - entry.bagsProduced)
+          quantity: Math.max(0, round(updatedBags[bagIndex].quantity - entry.bagsProduced))
         };
       }
 
@@ -394,9 +389,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       let updatedBags = [...currentBags];
 
       if (bagIndex > -1) {
-        updatedBags[bagIndex] = { ...updatedBags[bagIndex], quantity: newQuantity };
+        updatedBags[bagIndex] = { ...updatedBags[bagIndex], quantity: round(newQuantity) };
       } else {
-        updatedBags.push({ formulaId, quantity: newQuantity });
+        updatedBags.push({ formulaId, quantity: round(newQuantity) });
       }
 
       return { ...prev, bags: updatedBags };
@@ -409,11 +404,103 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       const bagIndex = currentBags.findIndex(b => b.formulaId === formulaId);
       if (bagIndex === -1) return prev; // Cannot cook what doesn't exist
 
+      const formula = prev.formulas?.find(f => f.id === formulaId);
+      const formulaName = formula?.name || 'Unknown Formula';
+
       const updatedBags = [...currentBags];
-      const newQty = Math.max(0, updatedBags[bagIndex].quantity - quantity);
+      const newQty = Math.max(0, round(updatedBags[bagIndex].quantity - quantity));
       updatedBags[bagIndex] = { ...updatedBags[bagIndex], quantity: newQty };
 
-      return { ...prev, bags: updatedBags };
+      const now = new Date();
+      const history = prev.cookingHistory || [];
+      const existingEntryIndex = history.findIndex(e =>
+        isSameDay(new Date(e.date), now) && e.formulaId === formulaId
+      );
+
+      let updatedHistory = [...history];
+
+      if (existingEntryIndex > -1) {
+        // Update existing entry for today
+        updatedHistory[existingEntryIndex] = {
+          ...updatedHistory[existingEntryIndex],
+          quantityCooked: round(updatedHistory[existingEntryIndex].quantityCooked + quantity),
+          date: now.toISOString(), // Update timestamp
+        };
+      } else {
+        // Create new entry
+        const newCookingEntry: CookingEntry = {
+          id: crypto.randomUUID(),
+          formulaId,
+          formulaName,
+          quantityCooked: quantity,
+          date: now.toISOString(),
+        };
+        updatedHistory = [newCookingEntry, ...updatedHistory];
+      }
+
+      return {
+        ...prev,
+        bags: updatedBags,
+        cookingHistory: updatedHistory
+      };
+    });
+  };
+
+  const updateCookingEntry = (id: string, newQuantity: number) => {
+    setState(prev => {
+      const history = prev.cookingHistory || [];
+      const entryIndex = history.findIndex(e => e.id === id);
+      if (entryIndex === -1) return prev;
+
+      const entry = history[entryIndex];
+      const diff = newQuantity - entry.quantityCooked;
+
+      // Adjust bags: if cooked more, subtract from stock. If cooked less, add back to stock.
+      const currentBags = prev.bags || [];
+      const bagIndex = currentBags.findIndex(b => b.formulaId === entry.formulaId);
+      let updatedBags = [...currentBags];
+
+      if (bagIndex > -1) {
+        updatedBags[bagIndex] = {
+          ...updatedBags[bagIndex],
+          quantity: Math.max(0, round(updatedBags[bagIndex].quantity - diff))
+        };
+      }
+
+      const updatedHistory = [...history];
+      updatedHistory[entryIndex] = { ...entry, quantityCooked: newQuantity };
+
+      return {
+        ...prev,
+        bags: updatedBags,
+        cookingHistory: updatedHistory,
+      };
+    });
+  };
+
+  const deleteCookingEntry = (id: string) => {
+    setState(prev => {
+      const history = prev.cookingHistory || [];
+      const entry = history.find(e => e.id === id);
+      if (!entry) return prev;
+
+      // Restore bags to stock
+      const currentBags = prev.bags || [];
+      const bagIndex = currentBags.findIndex(b => b.formulaId === entry.formulaId);
+      let updatedBags = [...currentBags];
+
+      if (bagIndex > -1) {
+        updatedBags[bagIndex] = {
+          ...updatedBags[bagIndex],
+          quantity: round(updatedBags[bagIndex].quantity + entry.quantityCooked)
+        };
+      }
+
+      return {
+        ...prev,
+        bags: updatedBags,
+        cookingHistory: history.filter(e => e.id !== id),
+      };
     });
   };
 
@@ -434,8 +521,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         deleteProduction,
         // Bag Management
         bags: state.bags || [],
+        cookingHistory: state.cookingHistory || [],
         updateBagCount,
         cookBags,
+        updateCookingEntry,
+        deleteCookingEntry,
         getIngredientById,
         resetInventory,
       }}

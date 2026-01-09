@@ -94,13 +94,8 @@
     "appId": "com.cheesefactory.stockmanager",
     "productName": "Cheese Stock Manager",
     "win": {
-      "target": "nsis"
-    },
-    "mac": {
-      "target": "dmg"
-    },
-    "linux": {
-      "target": "AppImage"
+      "target": "nsis",
+      "icon": "public/app-icon.png"
     },
     "nsis": {
       "oneClick": false,

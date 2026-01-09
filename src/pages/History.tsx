@@ -95,9 +95,9 @@ export default function History() {
         const neededDelta = totalNew - item.quantityUsed;
 
         // Find in stock
-        const inStock = useInventory().ingredients.find(i => i.id === item.ingredientId);
+        const inStock = ingredients.find(i => i.id === item.ingredientId);
         if (!inStock || inStock.quantity < neededDelta) {
-          toast.error(`Insufficient stock: Not enough ${item.ingredientName}. Need ${neededDelta.toFixed(1)}${item.unit} more.`);
+          toast.error(`Insufficient stock: Not enough ${item.ingredientName}. Need ${neededDelta.toFixed(1)}kg more.`);
           return;
         }
       }
@@ -269,7 +269,7 @@ export default function History() {
                   {entry.ingredientsUsed.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
                       <span className="text-foreground">{item.ingredientName}</span>
-                      <span className="text-muted-foreground">{item.quantityUsed.toFixed(1)} {item.unit}</span>
+                      <span className="text-muted-foreground">{item.quantityUsed.toFixed(1)} kg</span>
                     </div>
                   ))}
                 </div>
